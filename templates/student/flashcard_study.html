@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Study: {{ fset.title }}{% endblock %}
+{% block page_title %}{{ fset.title }}{% endblock %}
+{% block page_subtitle %}{{ fset.subject }} · {{ cards|length }} Cards · Click card or press Space to flip{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('student.flashcards') }}" class="btn btn-secondary">
+  Back to Decks
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 3D Flashcard Flip Styling */
+.flip-card-container {
+  perspective: 1200px;
+  width: 100%;
+  max-width: 680px;
+  min-height: 380px;
+  margin: 1.5rem auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  text-align: center;
+  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.flip-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front, .flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius-lg);
+  padding: 2.5rem 2rem;
+  box-shadow: 0 10px 30px rgba(108, 92, 231, 0.12);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  box-sizing: border-box;
+  border: 2px solid rgba(108, 92, 231, 0.15);
+}
+
+.flip-card-front {
+  background: linear-gradient(145deg, #ffffff 0%, #f9f8ff 100%);
+  color: var(--text-main);
+}
+
+.flip-card-back {
+  background: linear-gradient(145deg, #f3f0ff 0%, #ffffff 100%);
+  color: var(--text-main);
+  transform: rotateY(180deg);
+  border-color: var(--primary-light);
+}
+
+.card-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  background: rgba(108, 92, 231, 0.1);
+  color: var(--primary);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% if cards %}
+<!-- Progress Bar -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 0.85rem 1.25rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; font-size:0.875rem;">
+    <span style="font-weight:600;">Card <span id="currentIndexDisplay">1</span> of {{ cards|length }}</span>
+    <span style="font-weight:600; color:var(--success);" id="masteredCountDisplay">
+      Mastered: {{ cards|selectattr('is_mastered')|list|length }} / {{ cards|length }}
+    </span>
+  </div>
+  <div style="background:#eef0f8; border-radius:8px; height:8px; overflow:hidden;">
+    <div id="deckProgressBar" style="background:var(--gradient-primary); width:{{ (1 / cards|length * 100)|round(0) }}%; height:100%; transition: width 0.3s ease;"></div>
+  </div>
+</div>
+
+<!-- Interactive 3D Flip Card -->
+<div class="flip-card-container" id="flipCardBox" onclick="toggleFlip()">
+  <div class="flip-card-inner" id="cardInner">
+    
+    <!-- FRONT -->
+    <div class="flip-card-front">
+      <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+        <span class="card-badge">Question</span>
+        <span id="masteredBadgeFront" class="badge badge-success" style="display:none;">✓ Mastered</span>
+      </div>
+
+      <div style="flex:1; display:flex; align-items:center; justify-content:center; padding: 1rem 0;">
+        <h2 id="cardQuestion" style="font-size: 1.45rem; line-height: 1.5; font-weight: 700; margin: 0; color:var(--text-main);">
+          {{ cards[0].front }}
+        </h2>
+      </div>
+
+      <div style="width:100%;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); opacity: 0.75;">
+          Click to reveal answer 🔄
+        </div>
+      </div>
+    </div>
+
+    <!-- BACK -->
+    <div class="flip-card-back">
+      <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+        <span class="card-badge" style="background:rgba(0, 184, 148, 0.15); color:var(--success);">Answer</span>
+        <span id="masteredBadgeBack" class="badge badge-success" style="display:none;">✓ Mastered</span>
+      </div>
+
+      <div style="flex:1; display:flex; align-items:center; justify-content:center; padding: 1rem 0;">
+        <p id="cardAnswer" style="font-size: 1.3rem; line-height: 1.6; margin: 0; color:var(--text-main); font-weight: 500;">
+          {{ cards[0].back }}
+        </p>
+      </div>
+
+      <div style="font-size: 0.8rem; color: var(--text-muted); opacity: 0.75;">
+        Click to return to question 🔄
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Controls Bar -->
+<div style="max-width: 680px; margin: 1.5rem auto 0 auto; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: 1rem;">
+  <div style="display:flex; gap:0.5rem;">
+    <button class="btn btn-secondary" id="prevBtn" onclick="prevCard()" disabled>
+      ← Previous
+    </button>
+    <button class="btn btn-primary" id="nextBtn" onclick="nextCard()">
+      Next →
+    </button>
+  </div>
+
+  <div style="display:flex; gap:0.5rem; align-items:center;">
+    <button class="btn btn-secondary" onclick="toggleCardMastered()" id="masteredBtn" style="border: 1.5px solid var(--success); color: var(--success);">
+      <span id="masteredBtnIcon">★</span> <span id="masteredBtnText">Mark Mastered</span>
+    </button>
+    <button class="btn btn-ghost" onclick="shuffleCards()" title="Shuffle Deck">
+      🔀 Shuffle
+    </button>
+  </div>
+</div>
+
+<div style="text-align:center; margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted);">
+  Tip: Use keyboard shortcuts &larr; &rarr; to navigate, <kbd style="background:#eee; padding:2px 6px; border-radius:4px;">Space</kbd> to flip!
+</div>
+
+{% else %}
+<div class="card" style="text-align:center; padding: 3rem 1rem;">
+  <p>This deck has no cards yet.</p>
+  <a href="{{ url_for('student.flashcards') }}" class="btn btn-primary">Back to Flashcards</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if cards %}
+<script>
+const cardsData = [
+  {% for c in cards %}
+  {
+    id: {{ c.id }},
+    question: {{ c.front | tojson }},
+    answer: {{ c.back | tojson }},
+    is_mastered: {{ 'true' if c.is_mastered else 'false' }},
+    times_reviewed: {{ c.times_reviewed }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+
+let currentIndex = 0;
+let isFlipped = false;
+
+function updateCardView() {
+  const card = cardsData[currentIndex];
+  
+  // Reset flip
+  isFlipped = false;
+  document.getElementById('cardInner').classList.remove('flipped');
+  
+  // Set question & answer
+  document.getElementById('cardQuestion').innerText = card.question;
+  document.getElementById('cardAnswer').innerText = card.answer;
+  
+
+  
+  // Mastered status
+  const masteredBtn = document.getElementById('masteredBtn');
+  const masteredBtnText = document.getElementById('masteredBtnText');
+  const badgeFront = document.getElementById('masteredBadgeFront');
+  const badgeBack = document.getElementById('masteredBadgeBack');
+  
+  if (card.is_mastered) {
+    masteredBtn.style.background = 'var(--success)';
+    masteredBtn.style.color = '#fff';
+    masteredBtnText.innerText = 'Mastered ✓';
+    badgeFront.style.display = 'inline-block';
+    badgeBack.style.display = 'inline-block';
+  } else {
+    masteredBtn.style.background = 'transparent';
+    masteredBtn.style.color = 'var(--success)';
+    masteredBtnText.innerText = 'Mark Mastered';
+    badgeFront.style.display = 'none';
+    badgeBack.style.display = 'none';
+  }
+  
+  // Nav buttons
+  document.getElementById('currentIndexDisplay').innerText = currentIndex + 1;
+  document.getElementById('prevBtn').disabled = (currentIndex === 0);
+  document.getElementById('nextBtn').disabled = (currentIndex === cardsData.length - 1);
+  
+  // Progress bar
+  const pct = Math.round(((currentIndex + 1) / cardsData.length) * 100);
+  document.getElementById('deckProgressBar').style.width = pct + '%';
+}
+
+function toggleFlip() {
+  isFlipped = !isFlipped;
+  const inner = document.getElementById('cardInner');
+  if (isFlipped) {
+    inner.classList.add('flipped');
+  } else {
+    inner.classList.remove('flipped');
+  }
+}
+
+function prevCard() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    updateCardView();
+  }
+}
+
+function nextCard() {
+  if (currentIndex < cardsData.length - 1) {
+    currentIndex++;
+    updateCardView();
+  }
+}
+
+function toggleCardMastered() {
+  const card = cardsData[currentIndex];
+  fetch(`/student/flashcards/card/${card.id}/toggle-mastered`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(res => res.json())
+  .then(data => {
+    card.is_mastered = data.mastered;
+    card.times_reviewed = data.times_reviewed;
+    
+    // Update mastered count
+    const totalMastered = cardsData.filter(c => c.is_mastered).length;
+    document.getElementById('masteredCountDisplay').innerText = `Mastered: ${totalMastered} / ${cardsData.length}`;
+    
+    updateCardView();
+  })
+  .catch(err => console.error(err));
+}
+
+function shuffleCards() {
+  for (let i = cardsData.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cardsData[i], cardsData[j]] = [cardsData[j], cardsData[i]];
+  }
+  currentIndex = 0;
+  updateCardView();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    toggleFlip();
+  } else if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    nextCard();
+  } else if (e.code === 'ArrowLeft') {
+    e.preventDefault();
+    prevCard();
+  }
+});
+
+// Initialize first card
+updateCardView();
+</script>
+{% endif %}
+{% endblock %}

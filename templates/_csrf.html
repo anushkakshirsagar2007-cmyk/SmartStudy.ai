@@ -1,0 +1,13 @@
+<meta name="csrf-token" content="{{ csrf_token() }}" />
+<script>
+(function(){
+  var t=document.querySelector('meta[name=csrf-token]').content, f=window.fetch;
+  window.fetch=function(u,o){o=o||{};var m=(o.method||'GET').toUpperCase();
+    if(m!=='GET'&&m!=='HEAD'){o.headers=new Headers(o.headers||{});o.headers.set('X-CSRFToken',t);if(!o.credentials)o.credentials='same-origin';}
+    return f.call(this,u,o);};
+  document.addEventListener('DOMContentLoaded',function(){
+    document.querySelectorAll('form').forEach(function(fm){
+      if((fm.getAttribute('method')||'').toLowerCase()==='post'&&!fm.querySelector('[name=csrf_token]')){
+        var i=document.createElement('input');i.type='hidden';i.name='csrf_token';i.value=t;fm.appendChild(i);}});});
+})();
+</script>

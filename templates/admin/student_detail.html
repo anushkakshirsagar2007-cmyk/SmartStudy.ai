@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Student Details: {{ student.full_name }}{% endblock %}
+{% block page_title %}{{ student.full_name }}{% endblock %}
+{% block page_subtitle %}Student details, activity statistics, and academic performance record{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.students') }}" class="btn btn-secondary">
+  ← Back to Students
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Student Header Card -->
+<div class="card" style="padding: 1.75rem; margin-bottom: 2rem;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1.5rem;">
+    <div style="display:flex; gap:1.25rem; align-items:center;">
+      <div style="width: 72px; height: 72px; border-radius: 50%; background: {{ student.avatar_color }}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 800;">
+        {{ student.initials }}
+      </div>
+      <div>
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <h2 style="margin:0; font-size:1.4rem; font-weight:700;">{{ student.full_name }}</h2>
+          {% if student.is_active %}
+          <span class="badge badge-success">Active</span>
+          {% else %}
+          <span class="badge badge-danger">Inactive</span>
+          {% endif %}
+        </div>
+        <div style="font-size:0.875rem; color:var(--text-muted); margin-top:0.25rem;">
+          @{{ student.username }} · {{ student.email }} · Joined {{ student.created_at.strftime('%B %d, %Y') }}
+        </div>
+        {% if student.bio %}
+        <p style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 0 0; max-width:600px;">
+          "{{ student.bio }}"
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex; gap:0.6rem; align-items:center;">
+      <form method="POST" action="{{ url_for('admin.reset_student_password', user_id=student.id) }}" onsubmit="return confirm('Generate a new temporary password for this student?');" style="display:inline;"><button type="submit" class="btn btn-secondary">Reset password</button></form>
+      <form method="POST" action="{{ url_for('admin.toggle_student_status', user_id=student.id) }}" style="display:inline;">
+        <button type="submit" class="btn {% if student.is_active %}btn-secondary{% else %}btn-primary{% endif %}">
+          {% if student.is_active %}Deactivate Account{% else %}Activate Account{% endif %}
+        </button>
+      </form>
+      <form method="POST" action="{{ url_for('admin.delete_student', user_id=student.id) }}" onsubmit="return confirm('Permanently delete this student account?');" style="display:inline;">
+        <button type="submit" class="btn btn-ghost" style="color:var(--danger); border:1px solid #fed7d7;">
+          Delete Account
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Detailed Stats Grid -->
+<div class="stats-grid" style="margin-bottom: 2rem;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">🎯</div>
+    <div>
+      <div class="stat-value">{{ stats.avg_score }}%</div>
+      <div class="stat-label">Average Quiz Score</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(0, 184, 148, 0.15); color: #00b894;">📝</div>
+    <div>
+      <div class="stat-value">{{ stats.notes }}</div>
+      <div class="stat-label">Saved Study Notes</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(9, 132, 227, 0.15); color: #0984e3;">✅</div>
+    <div>
+      <div class="stat-value">{{ stats.completed_tasks }} / {{ stats.tasks }}</div>
+      <div class="stat-label">Tasks Completed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(253, 203, 110, 0.2); color: #d68910;">📑</div>
+    <div>
+      <div class="stat-value">{{ stats.documents }}</div>
+      <div class="stat-label">Uploaded Documents</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Quiz Attempts by Student -->
+<div class="card" style="padding: 1.5rem;">
+  <h3 style="margin:0 0 1rem 0; font-size:1.15rem; font-weight:700;">Quiz Performance History</h3>
+
+  {% if recent_attempts %}
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse: collapse; font-size:0.875rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid #eee; text-align:left; color:var(--text-muted);">
+          <th style="padding:0.75rem 0.5rem;">Quiz Title</th>
+          <th style="padding:0.75rem 0.5rem;">Score</th>
+          <th style="padding:0.75rem 0.5rem;">Correct Answers</th>
+          <th style="padding:0.75rem 0.5rem;">Time Spent</th>
+          <th style="padding:0.75rem 0.5rem; text-align:right;">Completed Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in recent_attempts %}
+        <tr style="border-bottom: 1px solid #f2f2f7;">
+          <td style="padding:0.75rem 0.5rem; font-weight:600;">{{ a.quiz.title }}</td>
+          <td style="padding:0.75rem 0.5rem;">
+            <span class="badge {% if a.score >= 80 %}badge-success{% elif a.score >= 60 %}badge-warning{% else %}badge-danger{% endif %}" style="font-weight:700;">
+              {{ a.score|round(1) }}%
+            </span>
+          </td>
+          <td style="padding:0.75rem 0.5rem;">{{ a.correct_answers }} / {{ a.total_questions }}</td>
+          <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ a.time_taken }}s</td>
+          <td style="padding:0.75rem 0.5rem; text-align:right; color:var(--text-muted);">{{ a.completed_at.strftime('%b %d, %Y %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center; padding: 2rem 1rem; color:var(--text-muted); font-size:0.875rem;">
+    This student has not completed any quizzes yet.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

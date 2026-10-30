@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="{% block meta_description %}SmartStudy.ai – Your AI-Powered Study Partner{% endblock %}" />
+  <title>{% block title %}SmartStudy.ai{% endblock %} | SmartStudy.ai</title>
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% block extra_css %}{% endblock %}
+  {% include '_csrf.html' %}
+</head>
+<body>
+  <!-- Sidebar Overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="app-layout">
+    <!-- ─── Sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar {% if current_user.is_admin() %}admin-sidebar{% endif %}" id="sidebar">
+      <div class="sidebar-logo">
+        <a href="{{ url_for('main.index') }}" class="logo-link" style="display:flex;align-items:center;gap:.75rem;text-decoration:none;">
+          <img src="{{ url_for('static', filename='images/logo.png') }}" alt="SmartStudy.ai Logo" style="width:38px;height:38px;border-radius:10px;object-fit:cover;box-shadow:0 4px 12px rgba(124,58,237,0.35);" />
+          <div>
+            <div class="logo-text">SmartStudy<span style="color:var(--primary-light)">.ai</span></div>
+            <span class="logo-tagline">AI Study Partner</span>
+          </div>
+        </a>
+      </div>
+
+      <nav class="sidebar-nav">
+        {% if current_user.is_admin() %}
+        <!-- Admin Nav -->
+        <span class="nav-section-label">Admin Panel</span>
+        <a href="{{ url_for('admin.dashboard') }}" class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+          <span class="nav-icon">📊</span> Dashboard
+        </a>
+        <a href="{{ url_for('admin.students') }}" class="nav-item {% if request.endpoint in ['admin.students', 'admin.student_detail'] %}active{% endif %}">
+          <span class="nav-icon">👥</span> Students
+        </a>
+        <a href="{{ url_for('admin.content') }}" class="nav-item {% if request.endpoint == 'admin.content' %}active{% endif %}">
+          <span class="nav-icon">📂</span> Content
+        </a>
+        <a href="{{ url_for('admin.payments') }}" class="nav-item {% if request.endpoint == 'admin.payments' %}active{% endif %}">
+          <span class="nav-icon">💳</span> Payments
+        </a>
+        <a href="{{ url_for('admin.stats') }}" class="nav-item {% if request.endpoint == 'admin.stats' %}active{% endif %}">
+          <span class="nav-icon">📈</span> Analytics
+        </a>
+        {% else %}
+        <!-- Student Nav -->
+        <span class="nav-section-label">Main</span>
+        <a href="{{ url_for('student.dashboard') }}" class="nav-item {% if request.endpoint == 'student.dashboard' %}active{% endif %}">
+          <span class="nav-icon">🏠</span> Dashboard
+        </a>
+
+        <span class="nav-section-label">Study Tools</span>
+        <a href="{{ url_for('student.workspace') }}" class="nav-item {% if 'workspace' in request.endpoint %}active{% endif %}">
+          <span class="nav-icon">⚡</span> AI Workspace
+        </a>
+        <a href="{{ url_for('student.chat') }}" class="nav-item {% if request.endpoint == 'student.chat' %}active{% endif %}">
+          <span class="nav-icon">💬</span> AI Chat
+        </a>
+        <a href="{{ url_for('student.notes') }}" class="nav-item {% if 'note' in request.endpoint %}active{% endif %}">
+          <span class="nav-icon">📝</span> Notes
+        </a>
+        <a href="{{ url_for('student.quizzes') }}" class="nav-item {% if 'quiz' in request.endpoint %}active{% endif %}">
+          <span class="nav-icon">❓</span> Quizzes
+        </a>
+        <a href="{{ url_for('student.flashcards') }}" class="nav-item {% if 'flashcard' in request.endpoint %}active{% endif %}">
+          <span class="nav-icon">🃏</span> Flashcards
+        </a>
+
+        <span class="nav-section-label">Manage</span>
+        <a href="{{ url_for('student.planner') }}" class="nav-item {% if 'planner' in request.endpoint or 'task' in request.endpoint %}active{% endif %}">
+          <span class="nav-icon">📅</span> Study Planner
+        </a>
+        <a href="{{ url_for('student.progress') }}" class="nav-item {% if request.endpoint == 'student.progress' %}active{% endif %}">
+          <span class="nav-icon">📈</span> Progress
+        </a>
+        <a href="{{ url_for('student.profile') }}" class="nav-item {% if request.endpoint == 'student.profile' %}active{% endif %}">
+          <span class="nav-icon">⚙️</span> Settings
+        </a>
+        <a href="{{ url_for('payment.pricing') }}" class="nav-item {% if request.endpoint == 'payment.pricing' %}active{% endif %}" style="margin-top: 0.5rem; background: rgba(124, 58, 237, 0.12); border: 1px solid rgba(124, 58, 237, 0.25);">
+          <span class="nav-icon">💎</span> Upgrade Plan
+          {% if current_user.is_pro %}
+            <span class="badge badge-success" style="margin-left: auto; font-size: 0.65rem;">PRO</span>
+          {% else %}
+            <span class="badge badge-warning" style="margin-left: auto; font-size: 0.65rem;">{{ current_user.uploads_remaining }} Left</span>
+          {% endif %}
+        </a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="user-avatar-sm" style="background:{{ current_user.avatar_color }}">{{ current_user.initials }}</div>
+          <div class="user-info-sm">
+            <div class="user-name-sm">{{ current_user.full_name.split()[0] }}</div>
+            <div class="user-role-sm">{{ current_user.role | title }}{% if current_user.is_admin() %} <span class="admin-badge">ADMIN</span>{% endif %}</div>
+          </div>
+        </div>
+        <form method="POST" action="{{ url_for('auth.logout') }}" style="margin:0"><button type="submit" class="nav-item" style="margin-top:.5rem;color:rgba(255,255,255,.5);background:none;border:0;width:100%;text-align:left;cursor:pointer;font:inherit">
+          <span class="nav-icon">🚪</span> Sign Out
+        </button></form>
+      </div>
+    </aside>
+
+    <!-- ─── Main Content ────────────────────────────────── -->
+    <div class="main-content">
+      <!-- Top Bar -->
+      <header class="topbar">
+        <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle menu">☰</button>
+        <div>
+          <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+          <div class="topbar-subtitle">{% block page_subtitle %}{% endblock %}</div>
+        </div>
+        <div class="topbar-right">
+          {% block topbar_actions %}{% endblock %}
+          <a href="{{ url_for('student.profile') if not current_user.is_admin() else url_for('admin.dashboard') }}" class="topbar-btn" title="Profile">
+            <div style="width:30px;height:30px;border-radius:50%;background:{{ current_user.avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">{{ current_user.initials }}</div>
+          </a>
+        </div>
+      </header>
+
+      <!-- Flash Messages -->
+      <div class="flash-container" aria-live="polite">
+        {% if not current_user.is_admin() and not current_user.is_verified %}
+        <div class="flash-msg warning" role="status">
+          <span>⚠</span>
+          <span>Your email is not verified. Check your inbox or request a new verification link.</span>
+          <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="margin-left:auto">
+            <button type="submit" class="btn btn-sm btn-secondary">Resend verification</button>
+          </form>
+        </div>
+        {% endif %}
+        {% with messages = get_flashed_messages(with_categories=True) %}
+          {% for category, msg in messages %}
+            <div class="flash-msg {{ category }}" role="alert">
+              <span>{% if category == 'success' %}✓{% elif category == 'error' %}✕{% elif category == 'warning' %}⚠{% else %}ℹ{% endif %}</span>
+              <span>{{ msg }}</span>
+              <button class="flash-close" aria-label="Close">✕</button>
+            </div>
+          {% endfor %}
+        {% endwith %}
+      </div>
+
+      <!-- Page Content -->
+      <main class="page-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

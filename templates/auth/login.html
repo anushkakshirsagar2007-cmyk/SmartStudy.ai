@@ -1,0 +1,63 @@
+{% extends "auth/base_auth.html" %}
+{% block title %}Sign In{% endblock %}
+
+{% block content %}
+<div class="auth-header" style="text-align:center;">
+  <img src="{{ url_for('static', filename='images/logo.png') }}" alt="SmartStudy.ai" style="width:54px;height:54px;border-radius:14px;object-fit:cover;margin:0 auto 0.75rem;box-shadow:0 8px 20px rgba(124,58,237,0.35);display:block;" />
+  <h1>Welcome Back!</h1>
+  <p>Sign in to continue your learning journey</p>
+</div>
+
+<form method="POST" id="login-form" novalidate>
+  <div class="form-group">
+    <label class="form-label" for="email">Email Address <span class="required">*</span></label>
+    <div class="input-icon-wrapper">
+      <span class="input-icon">✉</span>
+      <input type="email" id="email" name="email" class="form-control"
+             value="{{ form_data.get('email', '') }}"
+             placeholder="you@example.com" required autocomplete="email" />
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="login-password">
+      Password <span class="required">*</span>
+      <a href="{{ url_for('auth.forgot_password') }}" style="font-weight:400;font-size:.75rem;float:right;color:var(--primary)">Forgot password?</a>
+    </label>
+    <div class="input-icon-wrapper" style="position:relative">
+      <span class="input-icon">🔒</span>
+      <input type="password" id="login-password" name="password" class="form-control"
+             placeholder="Enter your password" required autocomplete="current-password" />
+      <button type="button" id="toggle-pw" style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:.85rem" aria-label="Show password">👁</button>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem">
+    <input type="checkbox" id="remember" name="remember" style="width:16px;height:16px;accent-color:var(--primary)" />
+    <label for="remember" style="font-size:.875rem;color:var(--text-secondary);cursor:pointer">Keep me signed in</label>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-full btn-lg" id="submit-btn">
+    <span id="btn-text">Sign In</span>
+    <span id="btn-spinner" style="display:none"><span class="spinner" style="width:16px;height:16px;border-width:2px"></span></span>
+  </button>
+</form>
+
+<div class="auth-footer">
+  Don't have an account? <a href="{{ url_for('auth.register') }}" style="font-weight:700;color:var(--primary)">Create one free →</a>
+</div>
+
+<script>
+  document.getElementById('toggle-pw').addEventListener('click', function() {
+    const pw = document.getElementById('login-password');
+    pw.type = pw.type === 'password' ? 'text' : 'password';
+    this.textContent = pw.type === 'password' ? '👁' : '🙈';
+  });
+
+  document.getElementById('login-form').addEventListener('submit', function() {
+    document.getElementById('btn-text').textContent = 'Signing in...';
+    document.getElementById('btn-spinner').style.display = 'inline';
+    document.getElementById('submit-btn').disabled = true;
+  });
+</script>
+{% endblock %}

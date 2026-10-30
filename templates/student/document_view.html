@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.original_name }}{% endblock %}
+{% block page_title %}{{ doc.original_name }}{% endblock %}
+{% block page_subtitle %}{{ doc.subject }} · {{ doc.word_count }} words · {{ doc.page_count }} page(s){% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('student.workspace') }}" class="btn btn-ghost btn-sm">← Workspace</a>
+{% endblock %}
+
+{% block content %}
+<div style="display:grid; grid-template-columns: minmax(320px, 380px) 1fr; gap:1.75rem; align-items:start;">
+  <!-- Left: Document Info + AI Actions -->
+  <div>
+    <!-- Document Info Card -->
+    <div class="card mb-6">
+      <div class="card-body">
+        <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.25rem">
+          <div style="width:56px;height:56px;border-radius:var(--radius-lg);background:var(--primary-50);display:flex;align-items:center;justify-content:center;font-size:1.75rem">
+            {{ '🖼️' if doc.file_type in ('png','jpg','jpeg','webp') else '📄' if doc.file_type == 'pdf' else '📃' }}
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:1rem;word-break:break-word">{{ doc.original_name }}</div>
+            <div style="font-size:.8rem;color:var(--text-muted);margin-top:.2rem">{{ doc.file_type|upper }} · {{ (doc.file_size / 1024)|round(1) }}KB</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem">
+          {% for label, value in [('Subject', doc.subject), ('Words', doc.word_count), ('Pages', doc.page_count), ('Uploaded', doc.created_at.strftime('%b %d, %Y'))] %}
+          <div style="background:var(--bg);padding:.625rem;border-radius:var(--radius-sm);border:1px solid var(--border)">
+            <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:600">{{ label }}</div>
+            <div style="font-weight:700;font-size:.9rem;margin-top:.1rem">{{ value }}</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if not has_openai %}
+        <div style="padding:.75rem;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--radius-sm);margin-bottom:1rem;font-size:.8rem;color:#92400E">
+          ⚠ <strong>Fallback Mode:</strong> Add <code>OPENAI_API_KEY</code> to <code>.env</code> for real AI generation.
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('student.delete_document', doc_id=doc.id) }}" style="display:inline">
+          <button type="submit" class="btn btn-danger btn-sm w-full" data-confirm="Delete this document? All related AI-generated content will also be removed.">🗑 Delete Document</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- AI Actions -->
+    {% if doc.is_processed %}
+    <div class="card mb-6">
+      <div class="card-header">
+        <h3>✦ AI Actions</h3>
+        <span class="ai-badge">AI Powered</span>
+      </div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.75rem">
+        <!-- Generate Notes -->
+        <div>
+          <button class="btn btn-primary w-full" id="gen-notes-btn" onclick="generateNotes({{ doc.id }})">
+            📝 Generate Study Notes
+          </button>
+          <div id="notes-result" style="display:none;margin-top:.5rem;padding:.625rem;border-radius:var(--radius-sm);font-size:.8rem"></div>
+        </div>
+
+        <!-- Generate Summary -->
+        <div>
+          <button class="btn btn-secondary w-full" id="gen-summary-btn" onclick="generateSummary({{ doc.id }})">
+            📋 Generate Summary
+          </button>
+          <div id="summary-result" style="display:none;margin-top:.5rem;padding:.875rem;border-radius:var(--radius-sm);font-size:.85rem;border:1px solid var(--border);background:var(--bg);line-height:1.7;white-space:pre-wrap"></div>
+        </div>
+
+        <!-- Generate Quiz -->
+        <div>
+          <div style="display:flex;gap:.5rem">
+            <select id="quiz-num" class="form-control form-select" style="width:120px;flex-shrink:0">
+              <option value="3">3 Qs</option>
+              <option value="5" selected>5 Qs</option>
+              <option value="8">8 Qs</option>
+              <option value="10">10 Qs</option>
+            </select>
+            <select id="quiz-difficulty" class="form-control form-select" style="flex:1">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+            <button class="btn btn-secondary" id="gen-quiz-btn" onclick="generateQuiz({{ doc.id }})">❓ Quiz</button>
+          </div>
+          <div id="quiz-result" style="display:none;margin-top:.5rem;padding:.625rem;border-radius:var(--radius-sm);font-size:.8rem"></div>
+        </div>
+
+        <!-- Generate Flashcards -->
+        <div>
+          <div style="display:flex;gap:.5rem">
+            <select id="fc-num" class="form-control form-select" style="width:120px;flex-shrink:0">
+              <option value="5">5 cards</option>
+              <option value="10" selected>10 cards</option>
+              <option value="15">15 cards</option>
+              <option value="20">20 cards</option>
+            </select>
+            <button class="btn btn-secondary" style="flex:1" id="gen-fc-btn" onclick="generateFlashcards({{ doc.id }})">🃏 Flashcards</button>
+          </div>
+          <div id="fc-result" style="display:none;margin-top:.5rem;padding:.625rem;border-radius:var(--radius-sm);font-size:.8rem"></div>
+        </div>
+
+        <!-- Ask Document -->
+        <div style="border-top:1px solid var(--border);padding-top:.75rem">
+          <label class="form-label" style="font-size:.8rem">Ask a question about this document</label>
+          <div style="display:flex;gap:.5rem">
+            <input type="text" id="doc-question" class="form-control" placeholder="What is the main topic?" style="flex:1" />
+            <button class="btn btn-secondary" id="ask-btn" onclick="askDocument({{ doc.id }})">Ask</button>
+          </div>
+          <div id="ask-result" style="display:none;margin-top:.75rem;padding:1rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;line-height:1.7"></div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card mb-6">
+      <div class="card-body">
+        <div class="empty-state" style="padding:1.5rem">
+          <div class="empty-icon">⚙️</div>
+          <h3>Document needs attention</h3>
+          <p>{% if doc.content_text.startswith('[Scanned PDF') %}{{ doc.content_text[1:-1] }}{% else %}Document text could not be extracted. AI features are unavailable for this document.{% endif %}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Full Document Previewer & Study Materials -->
+  <div>
+    <!-- Interactive Document Preview Card -->
+    <div class="card mb-6" style="overflow:hidden;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; padding:0.875rem 1.25rem;">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <h3 style="margin:0; font-size:1rem; font-weight:700;">
+            {% if doc.file_type == 'pdf' %}📄 Interactive PDF Preview
+            {% elif doc.file_type in ('png', 'jpg', 'jpeg', 'webp') %}🖼️ Image Preview
+            {% else %}📝 Document Content Preview{% endif %}
+          </h3>
+          <span class="badge badge-primary" style="font-size:0.7rem; text-transform:uppercase;">{{ doc.file_type }}</span>
+        </div>
+        
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          {% if doc.file_type == 'pdf' %}
+          <div style="display:flex; background:rgba(255,255,255,0.06); padding:2px; border-radius:6px; border:1px solid var(--border);">
+            <button type="button" onclick="switchDocTab('pdf')" id="tab-btn-pdf" class="btn btn-sm btn-primary" style="padding:0.25rem 0.65rem; font-size:0.75rem;">📄 PDF Viewer</button>
+            <button type="button" onclick="switchDocTab('text')" id="tab-btn-text" class="btn btn-sm btn-ghost" style="padding:0.25rem 0.65rem; font-size:0.75rem;">📝 Extracted Text</button>
+          </div>
+          {% endif %}
+          <a href="{{ url_for('student.serve_document_file', doc_id=doc.id) }}" target="_blank" class="btn btn-outline btn-sm" style="font-size:0.75rem; padding:0.3rem 0.65rem;" title="Open in new window">
+            🔗 Fullscreen
+          </a>
+          <a href="{{ url_for('student.serve_document_file', doc_id=doc.id) }}" download="{{ doc.original_name }}" class="btn btn-ghost btn-sm" style="font-size:0.75rem; padding:0.3rem 0.65rem;" title="Download original file">
+            ⬇ Download
+          </a>
+        </div>
+      </div>
+
+      <div class="card-body" style="padding:1rem;">
+        {% if doc.file_type == 'pdf' %}
+          <!-- PDF Embedded Frame -->
+          <div id="pdf-view-pane" style="width:100%;">
+            <iframe src="{{ url_for('student.serve_document_file', doc_id=doc.id) }}#toolbar=1&navpanes=1&scrollbar=1"
+                    style="width:100%; height:720px; border:1px solid var(--border); border-radius:var(--radius); background:#1e1e2d; display:block;"
+                    title="PDF Viewer">
+            </iframe>
+          </div>
+          <!-- PDF Extracted Text Tab -->
+          <div id="text-view-pane" style="display:none; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; max-height:720px; overflow-y:auto; font-size:0.875rem; line-height:1.75; white-space:pre-wrap; color:var(--text-primary);">
+            {{ doc.content_text }}
+          </div>
+        {% elif doc.file_type in ('png', 'jpg', 'jpeg', 'webp') %}
+          <!-- Image Viewer -->
+          <div style="background:rgba(0,0,0,0.3); border-radius:var(--radius); padding:1rem; text-align:center; border:1px solid var(--border); margin-bottom:1rem;">
+            <img src="{{ url_for('student.serve_document_file', doc_id=doc.id) }}" alt="{{ doc.original_name }}"
+                 style="max-width:100%; max-height:480px; object-fit:contain; border-radius:var(--radius); box-shadow:0 8px 30px rgba(0,0,0,0.5); display:inline-block;" />
+          </div>
+          <!-- AI Vision Explanation -->
+          <div style="border-top:1px solid var(--border); padding-top:1rem;">
+            <div style="font-weight:700; font-size:0.9rem; margin-bottom:0.5rem; color:var(--primary-light);">✦ AI Vision Analysis & Explanation</div>
+            <div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; font-size:0.875rem; line-height:1.75; max-height:360px; overflow-y:auto; white-space:pre-wrap; color:var(--text-primary);">
+              {{ doc.content_text }}
+            </div>
+          </div>
+        {% else %}
+          <!-- Text / Docx Document Viewer -->
+          <div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; font-size:0.875rem; line-height:1.75; max-height:650px; overflow-y:auto; white-space:pre-wrap; color:var(--text-primary);">
+            {{ doc.content_text }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if doc.summary %}
+    <div class="card mb-6">
+      <div class="card-header"><h3>📋 AI Summary</h3><span class="ai-badge">AI</span></div>
+      <div class="card-body"><p style="font-size:.875rem;line-height:1.7;white-space:pre-wrap">{{ doc.summary }}</p></div>
+    </div>
+    {% endif %}
+
+    <!-- Related Content -->
+    {% if related_notes or related_quizzes or related_flashcards %}
+    <div class="card">
+      <div class="card-header"><h3>Generated Content</h3></div>
+      <div class="card-body" style="padding:0">
+        {% for note in related_notes %}
+        <a href="{{ url_for('student.edit_note', note_id=note.id) }}" style="display:flex;align-items:center;gap:.75rem;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);text-decoration:none;transition:background .15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <span style="font-size:1.1rem">📝</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.875rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-primary)">{{ note.title }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">Note · {{ note.created_at.strftime('%b %d') }}</div>
+          </div>
+          <span class="ai-badge">Note</span>
+        </a>
+        {% endfor %}
+        {% for quiz in related_quizzes %}
+        <a href="{{ url_for('student.take_quiz', quiz_id=quiz.id) }}" style="display:flex;align-items:center;gap:.75rem;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);text-decoration:none;transition:background .15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <span style="font-size:1.1rem">❓</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.875rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-primary)">{{ quiz.title }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">{{ quiz.questions.count() }} questions</div>
+          </div>
+          <span class="ai-badge">Quiz</span>
+        </a>
+        {% endfor %}
+        {% for fset in related_flashcards %}
+        <a href="{{ url_for('student.flashcard_set', set_id=fset.id) }}" style="display:flex;align-items:center;gap:.75rem;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);text-decoration:none;transition:background .15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <span style="font-size:1.1rem">🃏</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.875rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-primary)">{{ fset.title }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">{{ fset.flashcards.count() }} cards</div>
+          </div>
+          <span class="ai-badge">Flashcards</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function setLoading(btnId, loading, text) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.innerHTML = loading ? `<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ${text}` : text;
+}
+
+function showResult(id, message, success) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.style.background = success ? '#ECFDF5' : '#FEF2F2';
+  el.style.border = `1px solid ${success ? '#A7F3D0' : '#FECACA'}`;
+  el.style.color = success ? '#065F46' : '#991B1B';
+  el.textContent = message;
+}
+
+async function generateNotes(docId) {
+  setLoading('gen-notes-btn', true, '📝 Generating Notes...');
+  document.getElementById('notes-result').style.display = 'none';
+  try {
+    const data = await apiCall('/api/ai/generate-notes', 'POST', { document_id: docId });
+    showResult('notes-result', `✓ Notes created! ${data.is_fallback ? '(Fallback mode)' : ''}`, true);
+    document.getElementById('notes-result').innerHTML += ` <a href="/student/notes" style="font-weight:700">View Notes →</a>`;
+  } catch(e) {
+    showResult('notes-result', '✕ ' + e.message, false);
+  }
+  setLoading('gen-notes-btn', false, '📝 Generate Study Notes');
+}
+
+async function generateSummary(docId) {
+  setLoading('gen-summary-btn', true, '📋 Generating Summary...');
+  document.getElementById('summary-result').style.display = 'none';
+  try {
+    const data = await apiCall('/api/ai/generate-summary', 'POST', { document_id: docId });
+    const el = document.getElementById('summary-result');
+    el.style.display = 'block';
+    el.textContent = data.summary;
+  } catch(e) {
+    showResult('summary-result', '✕ ' + e.message, false);
+  }
+  setLoading('gen-summary-btn', false, '📋 Generate Summary');
+}
+
+async function generateQuiz(docId) {
+  const num = document.getElementById('quiz-num').value;
+  const difficulty = document.getElementById('quiz-difficulty').value;
+  setLoading('gen-quiz-btn', true, '⏳');
+  document.getElementById('quiz-result').style.display = 'none';
+  try {
+    const data = await apiCall('/api/ai/generate-quiz', 'POST', {
+      document_id: docId, num_questions: parseInt(num), difficulty
+    });
+    showResult('quiz-result', `✓ Quiz created with ${num} questions! ${data.is_fallback ? '(Fallback)' : ''}`, true);
+    document.getElementById('quiz-result').innerHTML += ` <a href="/student/quizzes/${data.quiz_id}/take" style="font-weight:700">Take Quiz →</a>`;
+  } catch(e) {
+    showResult('quiz-result', '✕ ' + e.message, false);
+  }
+  setLoading('gen-quiz-btn', false, '❓ Quiz');
+}
+
+async function generateFlashcards(docId) {
+  const num = document.getElementById('fc-num').value;
+  setLoading('gen-fc-btn', true, '⏳ Generating...');
+  document.getElementById('fc-result').style.display = 'none';
+  try {
+    const data = await apiCall('/api/ai/generate-flashcards', 'POST', {
+      document_id: docId, num_cards: parseInt(num)
+    });
+    showResult('fc-result', `✓ ${num} flashcards created!`, true);
+    document.getElementById('fc-result').innerHTML += ` <a href="/student/flashcards/set/${data.set_id}" style="font-weight:700">Study Now →</a>`;
+  } catch(e) {
+    showResult('fc-result', '✕ ' + e.message, false);
+  }
+  setLoading('gen-fc-btn', false, '🃏 Flashcards');
+}
+
+async function askDocument(docId) {
+  const q = document.getElementById('doc-question').value.trim();
+  if (!q) { showFlash('Please enter a question.', 'error'); return; }
+  setLoading('ask-btn', true, '...');
+  const result = document.getElementById('ask-result');
+  result.style.display = 'none';
+  try {
+    const data = await apiCall('/api/ai/ask-document', 'POST', { document_id: docId, question: q });
+    result.style.display = 'block';
+    result.innerHTML = `<strong style="color:var(--primary)">${q}</strong><hr style="margin:.75rem 0;border-color:var(--border)"><p style="margin:0;white-space:pre-wrap">${data.answer}</p>`;
+  } catch(e) {
+    showResult('ask-result', '✕ ' + e.message, false);
+  }
+  setLoading('ask-btn', false, 'Ask');
+}
+
+document.getElementById('doc-question')?.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') askDocument({{ doc.id }});
+});
+</script>
+{% endblock %}

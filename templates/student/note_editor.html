@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Note' if mode == 'edit' else 'New Note' }}{% endblock %}
+{% block page_title %}{{ 'Edit Note' if mode == 'edit' else 'New Note' }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('student.notes') }}" class="btn btn-ghost btn-sm">← Notes</a>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:800px;margin:0 auto">
+  <form method="POST" id="note-form">
+    <div class="card">
+      <div class="card-body">
+        <!-- Title -->
+        <div class="form-group">
+          <label class="form-label" for="note-title">Note Title <span class="required">*</span></label>
+          <input type="text" id="note-title" name="title" class="form-control"
+                 value="{{ note.title if note else '' }}"
+                 placeholder="Enter note title..." required style="font-size:1.125rem;font-weight:600" />
+        </div>
+
+        <!-- Meta row -->
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem">
+          <div style="flex:1;min-width:140px">
+            <label class="form-label">Subject</label>
+            <select name="subject" class="form-control form-select">
+              {% set subjects = ['General','Mathematics','Computer Science','Physics','Chemistry','Biology','History','Literature','Economics','Psychology','Other'] %}
+              {% for s in subjects %}
+              <option value="{{ s }}" {% if note and note.subject == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label class="form-label">Tags <span style="font-weight:400;color:var(--text-muted)">(comma separated)</span></label>
+            <input type="text" name="tags" class="form-control" value="{{ note.tags if note else '' }}" placeholder="e.g. exam, chapter-1" />
+          </div>
+          <div style="flex-shrink:0">
+            <label class="form-label">Color</label>
+            <div style="display:flex;gap:.375rem;margin-top:.5rem">
+              {% for color in ['#7C3AED','#5B21B6','#0891B2','#059669','#D97706','#DC2626','#2563EB','#7C3AED'] %}
+              <label style="cursor:pointer">
+                <input type="radio" name="color" value="{{ color }}" {% if (note and note.color == color) or (not note and loop.first) %}checked{% endif %} style="display:none" />
+                <div style="width:22px;height:22px;border-radius:50%;background:{{ color }};border:2px solid transparent;transition:all .15s" class="color-swatch"></div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Content Editor -->
+        <div class="form-group">
+          <label class="form-label">Content <span style="font-weight:400;font-size:.75rem;color:var(--text-muted)">(Markdown supported)</span></label>
+          <!-- Toolbar -->
+          <div style="display:flex;gap:.25rem;padding:.5rem;background:var(--bg);border:1.5px solid var(--border);border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;flex-wrap:wrap">
+            {% for btn_text, cmd, title in [('B','bold','Bold'), ('I','italic','Italic'), ('H1','h1','Heading 1'), ('H2','h2','Heading 2'), ('•','ul','Bullet List'), ('1.','ol','Numbered List'), ('`','code','Inline Code'), ('—','hr','Divider')] %}
+            <button type="button" class="btn btn-ghost" style="padding:.25rem .5rem;font-size:.75rem;font-weight:{{ '800' if cmd in ('bold','h1','h2') else '400' }}" onclick="insertFormat('{{ cmd }}')" title="{{ title }}">{{ btn_text }}</button>
+            {% endfor %}
+          </div>
+          <textarea id="note-content" name="content" class="form-control" 
+                    style="min-height:350px;border-radius:0 0 var(--radius) var(--radius);border-top:none;font-family:monospace;font-size:.875rem;line-height:1.7;resize:vertical"
+                    placeholder="Start writing your notes here... Markdown is supported!&#10;&#10;# Heading 1&#10;## Heading 2&#10;**bold** *italic*&#10;- bullet point&#10;1. numbered list">{{ note.content if note else '' }}</textarea>
+        </div>
+      </div>
+
+      <div class="card-footer">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem">
+          <div>
+            {% if mode == 'edit' %}
+            <form method="POST" action="{{ url_for('student.delete_note', note_id=note.id) }}" style="display:inline">
+              <button type="submit" class="btn btn-ghost" style="color:var(--error)" data-confirm="Delete this note permanently?">🗑 Delete</button>
+            </form>
+            {% endif %}
+          </div>
+          <div style="display:flex;gap:.75rem">
+            <a href="{{ url_for('student.notes') }}" class="btn btn-ghost">Cancel</a>
+            <button type="submit" class="btn btn-primary">💾 {{ 'Save Changes' if mode == 'edit' else 'Create Note' }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Color swatch selection
+document.querySelectorAll('.color-swatch').forEach(swatch => {
+  const radio = swatch.previousElementSibling;
+  function update() {
+    swatch.style.borderColor = radio.checked ? '#fff' : 'transparent';
+    swatch.style.outline = radio.checked ? '2px solid ' + swatch.style.background : 'none';
+    swatch.style.outlineOffset = '2px';
+  }
+  update();
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('.color-swatch').forEach(s => {
+      s.style.borderColor = 'transparent';
+      s.style.outline = 'none';
+    });
+    update();
+  });
+});
+
+function insertFormat(type) {
+  const ta = document.getElementById('note-content');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const sel = ta.value.substring(start, end);
+  let insert = '';
+  switch(type) {
+    case 'bold': insert = `**${sel || 'bold text'}**`; break;
+    case 'italic': insert = `*${sel || 'italic text'}*`; break;
+    case 'h1': insert = `\n# ${sel || 'Heading 1'}\n`; break;
+    case 'h2': insert = `\n## ${sel || 'Heading 2'}\n`; break;
+    case 'ul': insert = `\n- ${sel || 'List item'}\n`; break;
+    case 'ol': insert = `\n1. ${sel || 'List item'}\n`; break;
+    case 'code': insert = `\`${sel || 'code'}\``; break;
+    case 'hr': insert = '\n---\n'; break;
+  }
+  ta.value = ta.value.substring(0, start) + insert + ta.value.substring(end);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = start + insert.length;
+}
+</script>
+{% endblock %}

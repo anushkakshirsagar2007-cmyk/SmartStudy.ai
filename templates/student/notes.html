@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Notes{% endblock %}
+{% block page_title %}My Notes{% endblock %}
+{% block page_subtitle %}{{ notes|length }} note{{ 's' if notes|length != 1 }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('student.create_note') }}" class="btn btn-primary btn-sm">+ New Note</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card mb-6">
+  <div class="card-body" style="padding:.875rem 1.25rem">
+    <form method="GET" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+      <div class="search-bar" style="flex:1;min-width:200px">
+        <span class="search-icon">🔍</span>
+        <input type="text" name="search" value="{{ search }}" placeholder="Search notes..." />
+      </div>
+      {% if subjects %}
+      <select name="subject" class="form-control form-select" style="width:160px">
+        <option value="">All Subjects</option>
+        {% for s in subjects %}<option value="{{ s }}" {% if s == subject_filter %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <label style="display:flex;align-items:center;gap:.375rem;font-size:.875rem;cursor:pointer">
+        <input type="checkbox" name="bookmarked" value="1" {% if bookmarked == '1' %}checked{% endif %} style="accent-color:var(--primary)" />
+        🔖 Bookmarked
+      </label>
+      <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      {% if search or subject_filter or bookmarked %}
+      <a href="{{ url_for('student.notes') }}" class="btn btn-ghost btn-sm">✕ Clear</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{% if notes %}
+<div class="grid-auto">
+  {% for note in notes %}
+  <div class="card card-hover note-card" style="border-left-color:{{ note.color }}">
+    <div class="card-body">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
+        <h4 style="font-size:.9375rem;line-height:1.35;flex:1;min-width:0;word-break:break-word">{{ note.title }}</h4>
+        <div style="display:flex;gap:.25rem;flex-shrink:0">
+          {% if note.is_bookmarked %}<span title="Bookmarked" style="font-size:1rem">🔖</span>{% endif %}
+          {% if note.is_ai_generated %}<span class="ai-badge">AI</span>{% endif %}
+        </div>
+      </div>
+
+      {% if note.subject %}
+      <span class="badge badge-primary" style="margin-bottom:.625rem">{{ note.subject }}</span>
+      {% endif %}
+
+      <div class="note-content" style="max-height:100px;overflow:hidden;font-size:.8rem;margin-bottom:.875rem;position:relative">
+        {{ note.content[:200] | replace('\n', ' ') }}{% if note.content|length > 200 %}...{% endif %}
+        <div style="position:absolute;bottom:0;left:0;right:0;height:30px;background:linear-gradient(transparent,#fff)"></div>
+      </div>
+
+      {% if note.tags %}
+      <div style="display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.75rem">
+        {% for tag in note.tags.split(',') if tag.strip() %}
+        <span class="tag">{{ tag.strip() }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.75rem">
+        Updated {{ note.updated_at.strftime('%b %d, %Y') }}
+      </div>
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="{{ url_for('student.edit_note', note_id=note.id) }}" class="btn btn-secondary btn-sm">✏ Edit</a>
+        <button class="btn btn-ghost btn-sm" onclick="toggleBookmark({{ note.id }}, this)" style="color:{% if note.is_bookmarked %}var(--warning){% else %}var(--text-muted){% endif %}">
+          {{ '🔖' if note.is_bookmarked else '☆' }}
+        </button>
+        <form method="POST" action="{{ url_for('student.delete_note', note_id=note.id) }}" style="margin-left:auto">
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--error)" data-confirm="Delete note '{{ note.title }}'?">🗑</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📝</div>
+  <h3>{% if search or subject_filter or bookmarked %}No notes match your filters{% else %}No notes yet{% endif %}</h3>
+  <p>{% if search or subject_filter or bookmarked %}Try different search terms or clear the filters.{% else %}Create your first note manually or upload a document to generate AI notes.{% endif %}</p>
+  {% if not (search or subject_filter or bookmarked) %}
+  <div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
+    <a href="{{ url_for('student.create_note') }}" class="btn btn-primary">+ Create Note</a>
+    <a href="{{ url_for('student.workspace') }}" class="btn btn-secondary">⚡ AI Workspace</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function toggleBookmark(noteId, btn) {
+  try {
+    const data = await apiCall(`/student/notes/${noteId}/toggle-bookmark`, 'POST');
+    btn.textContent = data.bookmarked ? '🔖' : '☆';
+    btn.style.color = data.bookmarked ? 'var(--warning)' : 'var(--text-muted)';
+    showFlash(data.bookmarked ? 'Note bookmarked!' : 'Bookmark removed.', 'success');
+  } catch(e) {
+    showFlash('Could not update bookmark.', 'error');
+  }
+}
+</script>
+{% endblock %}

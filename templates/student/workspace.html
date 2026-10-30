@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}AI Workspace{% endblock %}
+{% block page_title %}AI Workspace{% endblock %}
+{% block page_subtitle %}Upload documents and generate study materials with AI{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" data-modal-open="upload-modal">⬆ Upload Document</button>
+{% endblock %}
+
+{% block content %}
+<!-- Upload Limit Status Banner -->
+{% if not current_user.is_pro %}
+  {% if not current_user.can_upload %}
+  <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div style="font-size: 2rem;">⚠️</div>
+      <div>
+        <div style="font-weight: 700; color: #F87171; font-size: 1rem;">Free Upload Limit Reached ({{ current_user.free_uploads_used }}/{{ FREE_UPLOAD_LIMIT }} PDFs)</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
+          You have used all 3 free uploads. Upgrade to Pro for unlimited uploads, real AI summaries, and priority processing for ₹49/month!
+        </div>
+      </div>
+    </div>
+    <a href="{{ url_for('payment.pricing') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #7C3AED, #9333EA); font-weight: 700; padding: 0.65rem 1.25rem; text-decoration: none;">
+      ⭐ Upgrade to Pro (₹49)
+    </a>
+  </div>
+  {% else %}
+  <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <span style="font-size: 1.25rem;">📄</span>
+      <div style="font-size: 0.875rem;">
+        Free Tier: <strong>{{ current_user.free_uploads_used }}</strong> of <strong>{{ FREE_UPLOAD_LIMIT }}</strong> free uploads used
+        <span style="color: #10B981; font-weight: 600;">({{ current_user.uploads_remaining }} left)</span>
+      </div>
+    </div>
+    <a href="{{ url_for('payment.pricing') }}" style="font-size: 0.8rem; font-weight: 600; color: var(--primary-light); text-decoration: none;">
+      Upgrade to Pro for Unlimited →
+    </a>
+  </div>
+  {% endif %}
+{% endif %}
+
+<!-- Upload Modal -->
+<div class="modal-overlay" id="upload-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">📄 Upload Study Document</h3>
+      <button class="modal-close" data-modal-close="upload-modal">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('student.upload_document') }}" enctype="multipart/form-data" id="upload-form">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Select File <span class="required">*</span></label>
+          <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:2rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)">
+            <div style="font-size:2.5rem;margin-bottom:.75rem">📁</div>
+            <p style="font-weight:600;color:var(--text-primary);margin-bottom:.25rem">Drop file here or click to browse</p>
+            <p style="font-size:.8rem;color:var(--text-muted)">Supports PDF, Images (JPG, PNG, WEBP), DOCX, TXT · Maximum 10 MB</p>
+            <input type="file" name="file" id="file-input" accept=".pdf,.txt,.docx,.doc,.md,.png,.jpg,.jpeg,.webp" required style="display:none" />
+          </div>
+          <div id="file-preview" style="display:none;margin-top:.75rem;padding:.875rem;background:var(--primary-50);border-radius:var(--radius);border:1px solid var(--primary-200)">
+            <div style="display:flex;align-items:center;gap:.75rem">
+              <span style="font-size:1.25rem">📄</span>
+              <div>
+                <div style="font-weight:600;font-size:.875rem" id="file-name">filename.pdf</div>
+                <div style="font-size:.7rem;color:var(--text-muted)" id="file-size"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="subject">Subject</label>
+          <select name="subject" id="subject" class="form-control form-select">
+            <option value="General">General</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="Physics">Physics</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Biology">Biology</option>
+            <option value="History">History</option>
+            <option value="Literature">Literature</option>
+            <option value="Economics">Economics</option>
+            <option value="Psychology">Psychology</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-modal-close="upload-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="upload-btn">⬆ Upload & Process</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if documents %}
+<div class="grid-auto">
+  {% for doc in documents %}
+  <div class="card card-hover">
+    <div class="card-body">
+      <div style="display:flex;align-items:flex-start;gap:1rem;margin-bottom:1rem">
+        <div style="width:48px;height:48px;border-radius:var(--radius);background:var(--primary-50);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">
+          {{ '🖼️' if doc.file_type in ('png','jpg','jpeg','webp') else '📄' if doc.file_type == 'pdf' else '📃' if doc.file_type in ('txt','md') else '📝' }}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.9rem;color:var(--text-primary);word-break:break-word">{{ doc.original_name }}</div>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-top:.2rem">
+            {{ doc.subject }} · {{ (doc.file_size / 1024)|int }}KB
+            {% if doc.word_count %} · {{ doc.word_count }} words{% endif %}
+          </div>
+        </div>
+        <span class="badge {{ 'badge-success' if doc.is_processed else 'badge-warning' }}">
+          {{ '✓ Ready' if doc.is_processed else '⏳ Processing' }}
+        </span>
+      </div>
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+        <span class="badge badge-primary">{{ doc.file_type|upper }}</span>
+        {% if doc.page_count > 0 %}<span style="font-size:.7rem;color:var(--text-muted)">📃 {{ doc.page_count }} page{{ 's' if doc.page_count != 1 }}</span>{% endif %}
+        <span style="font-size:.7rem;color:var(--text-muted)">{{ doc.created_at.strftime('%b %d, %Y') }}</span>
+      </div>
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="{{ url_for('student.document_view', doc_id=doc.id) }}" class="btn btn-primary btn-sm">Open →</a>
+        <form method="POST" action="{{ url_for('student.delete_document', doc_id=doc.id) }}" style="display:inline">
+          <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--error)" data-confirm="Delete '{{ doc.original_name }}'? This also removes related notes, quizzes, and flashcards.">🗑 Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📁</div>
+  <h3>No Documents Yet</h3>
+  <p>Upload your first PDF, DOCX, or text file and let AI generate study notes, quizzes, and flashcards from it.</p>
+  <button class="btn btn-primary" data-modal-open="upload-modal">⬆ Upload Your First Document</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const preview = document.getElementById('file-preview');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--primary)';
+    dropZone.style.background = 'var(--primary-50)';
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = 'var(--bg)';
+  });
+
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = 'var(--bg)';
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    const allowed = ['pdf', 'txt', 'docx', 'doc', 'md'];
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!allowed.includes(ext)) {
+      showFlash('Unsupported file type. Please use PDF, TXT, DOCX, or MD.', 'error');
+      return;
+    }
+    if (file.size > 16 * 1024 * 1024) {
+      showFlash('File size must be under 16MB.', 'error');
+      return;
+    }
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    preview.style.display = 'block';
+    dropZone.style.borderColor = 'var(--primary)';
+  }
+
+  document.getElementById('upload-form').addEventListener('submit', function() {
+    const btn = document.getElementById('upload-btn');
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Uploading...';
+    btn.disabled = true;
+  });
+</script>
+{% endblock %}

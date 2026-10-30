@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block page_title %}Platform Administration{% endblock %}
+{% block page_subtitle %}Overview of platform activity, student engagement, and AI generation metrics{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.students') }}" class="btn btn-primary">
+  <span>👥</span> Manage Students
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Top Stats Row -->
+<div class="stats-grid" style="margin-bottom: 2rem;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">👥</div>
+    <div>
+      <div class="stat-value">{{ total_students }}</div>
+      <div class="stat-label">Total Students ({{ active_students }} Active)</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(0, 184, 148, 0.15); color: #00b894;">📄</div>
+    <div>
+      <div class="stat-value">{{ total_docs }}</div>
+      <div class="stat-label">Uploaded Documents</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(9, 132, 227, 0.15); color: #0984e3;">📝</div>
+    <div>
+      <div class="stat-value">{{ total_notes }}</div>
+      <div class="stat-label">Study Notes Generated</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(253, 203, 110, 0.2); color: #d68910;">🎯</div>
+    <div>
+      <div class="stat-value">{{ avg_score }}%</div>
+      <div class="stat-label">Avg Quiz Score ({{ total_attempts }} Attempts)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Second Row: AI Usage & Registrations Chart -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+  
+  <!-- Daily Registrations (Last 7 Days) -->
+  <div class="card" style="padding: 1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+      <h3 style="margin:0; font-size: 1.15rem; font-weight: 700;">Student Registrations (Last 7 Days)</h3>
+      <span class="badge badge-success">+{{ new_students }} New This Week</span>
+    </div>
+
+    <!-- Visual Bars -->
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; height: 160px; padding: 1rem 0; border-bottom: 1px solid #eee;">
+      {% for day, count in daily_regs.items() %}
+      {% set bar_h = (count * 30) if (count * 30) <= 130 else 130 %}
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end;">
+        <div style="font-size:0.75rem; font-weight:700; color:var(--primary); margin-bottom: 4px;">{{ count }}</div>
+        <div style="width: 24px; background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%); height: {{ bar_h if bar_h > 8 else 8 }}px; border-radius: 6px 6px 0 0;"></div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top: 8px;">{{ day[-5:] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- AI Content Generation Breakdown -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 style="margin:0 0 1rem 0; font-size: 1.15rem; font-weight: 700;">AI Content Impact</h3>
+    
+    <div style="display:flex; flex-direction:column; gap: 1rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.75rem; background:#f9f9fd; border-radius:8px;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span>📝</span>
+          <span style="font-size:0.9rem; font-weight:600;">AI Generated Notes</span>
+        </div>
+        <span class="badge badge-primary">{{ ai_notes }}</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.75rem; background:#f9f9fd; border-radius:8px;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span>❓</span>
+          <span style="font-size:0.9rem; font-weight:600;">AI Quizzes</span>
+        </div>
+        <span class="badge badge-success">{{ ai_quizzes }}</span>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.75rem; background:#f9f9fd; border-radius:8px;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span>🃏</span>
+          <span style="font-size:0.9rem; font-weight:600;">AI Flashcard Sets</span>
+        </div>
+        <span class="badge badge-warning">{{ ai_fc_sets }}</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Third Row: Recent Students Table -->
+<div class="card" style="padding: 1.5rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+    <h3 style="margin:0; font-size: 1.15rem; font-weight:700;">Recently Registered Students</h3>
+    <a href="{{ url_for('admin.students') }}" class="btn btn-secondary btn-sm">View All Students →</a>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse: collapse; font-size:0.875rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid #eee; text-align:left; color:var(--text-muted);">
+          <th style="padding:0.75rem 0.5rem;">Student</th>
+          <th style="padding:0.75rem 0.5rem;">Email</th>
+          <th style="padding:0.75rem 0.5rem;">Target Subject</th>
+          <th style="padding:0.75rem 0.5rem;">Status</th>
+          <th style="padding:0.75rem 0.5rem;">Registered</th>
+          <th style="padding:0.75rem 0.5rem; text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in recent_students %}
+        <tr style="border-bottom: 1px solid #f2f2f7;">
+          <td style="padding:0.75rem 0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              <div style="width:30px; height:30px; border-radius:50%; background:{{ s.avatar_color }}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700;">
+                {{ s.initials }}
+              </div>
+              <span style="font-weight:600;">{{ s.full_name }}</span>
+            </div>
+          </td>
+          <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ s.email }}</td>
+          <td style="padding:0.75rem 0.5rem;">{{ s.preferred_subject or 'General' }}</td>
+          <td style="padding:0.75rem 0.5rem;">
+            {% if s.is_active %}
+            <span class="badge badge-success">Active</span>
+            {% else %}
+            <span class="badge badge-danger">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ s.created_at.strftime('%b %d, %Y') }}</td>
+          <td style="padding:0.75rem 0.5rem; text-align:right;">
+            <a href="{{ url_for('admin.student_detail', user_id=s.id) }}" class="btn btn-sm btn-ghost" style="color:var(--primary);">
+              Inspect 👁️
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Welcome back, {{ current_user.full_name.split()[0] }}! 👋{% endblock %}
+
+{% block content %}
+<!-- Stat Cards -->
+<div class="grid-4 mb-6">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#F5F3FF">📝</div>
+    <div class="stat-value">{{ stats.total_notes }}</div>
+    <div class="stat-label">Total Notes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#ECFDF5">✅</div>
+    <div class="stat-value">{{ stats.task_completion_rate }}%</div>
+    <div class="stat-label">Task Completion</div>
+    <div class="stat-change positive">{{ stats.completed_tasks }}/{{ stats.total_tasks }} tasks done</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#FFF7ED">❓</div>
+    <div class="stat-value">{{ stats.avg_quiz_score }}%</div>
+    <div class="stat-label">Avg Quiz Score</div>
+    <div class="stat-change {% if stats.avg_quiz_score >= 70 %}positive{% else %}negative{% endif %}">
+      {{ stats.total_quiz_attempts }} attempt{{ 's' if stats.total_quiz_attempts != 1 }}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#EFF6FF">🔥</div>
+    <div class="stat-value">{{ stats.active_days }}</div>
+    <div class="stat-label">Active Days (7d)</div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mb-6">
+  <div class="card-header">
+    <h3>Quick Actions</h3>
+    <span class="text-muted text-sm">Jump right in</span>
+  </div>
+  <div class="card-body">
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      <a href="{{ url_for('student.workspace') }}" class="btn btn-primary">⚡ AI Workspace</a>
+      <a href="{{ url_for('student.chat') }}" class="btn btn-secondary">💬 Chat with AI</a>
+      <a href="{{ url_for('student.create_note') }}" class="btn btn-secondary">📝 New Note</a>
+      <a href="{{ url_for('student.planner') }}" class="btn btn-secondary">📅 Study Planner</a>
+      <a href="{{ url_for('student.quizzes') }}" class="btn btn-ghost">❓ My Quizzes</a>
+      <a href="{{ url_for('student.flashcards') }}" class="btn btn-ghost">🃏 Flashcards</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Recent Notes -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Recent Notes</h3>
+      <a href="{{ url_for('student.notes') }}" class="btn btn-ghost btn-sm">View All →</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if recent_notes %}
+        {% for note in recent_notes %}
+        <a href="{{ url_for('student.edit_note', note_id=note.id) }}" style="display:block;padding:1rem 1.5rem;border-bottom:1px solid var(--border);transition:background .15s;text-decoration:none" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <div style="display:flex;align-items:flex-start;gap:.75rem">
+            <div style="width:10px;height:10px;border-radius:50%;background:{{ note.color }};flex-shrink:0;margin-top:.375rem"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.875rem;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                {{ note.title }}
+                {% if note.is_ai_generated %}<span class="ai-badge" style="margin-left:.5rem">AI</span>{% endif %}
+                {% if note.is_bookmarked %}<span style="margin-left:.25rem">🔖</span>{% endif %}
+              </div>
+              <div style="font-size:.75rem;color:var(--text-muted);margin-top:.15rem">{{ note.subject }} · {{ note.updated_at.strftime('%b %d') }}</div>
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:2rem">
+          <div class="empty-icon">📝</div>
+          <h3>No notes yet</h3>
+          <p>Create your first note or upload a document to get AI-generated notes.</p>
+          <a href="{{ url_for('student.create_note') }}" class="btn btn-primary btn-sm">Create Note</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Upcoming Tasks -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Upcoming Tasks</h3>
+      <a href="{{ url_for('student.planner') }}" class="btn btn-ghost btn-sm">Planner →</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if upcoming_tasks %}
+        {% for task in upcoming_tasks %}
+        <div style="padding:.875rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:.75rem">
+          <form method="POST" action="{{ url_for('student.update_task_status', task_id=task.id) }}" style="flex-shrink:0;margin-top:2px">
+            <input type="hidden" name="status" value="completed" />
+            <button type="submit" style="width:18px;height:18px;border:2px solid var(--border);border-radius:50%;background:none;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;transition:all .2s" title="Mark complete" onmouseover="this.style.borderColor='var(--success)'" onmouseout="this.style.borderColor='var(--border)'"></button>
+          </form>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:.875rem;color:var(--text-primary)">{{ task.title }}</div>
+            <div style="display:flex;align-items:center;gap:.5rem;margin-top:.2rem;flex-wrap:wrap">
+              <span class="badge badge-{{ 'error' if task.priority == 'high' or task.priority == 'urgent' else 'warning' if task.priority == 'medium' else 'success' }}">{{ task.priority }}</span>
+              {% if task.due_date %}
+              <span style="font-size:.7rem;color:var(--text-muted)">
+                📅 {{ task.due_date.strftime('%b %d, %Y') }}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:2rem">
+          <div class="empty-icon">📅</div>
+          <h3>No upcoming tasks</h3>
+          <a href="{{ url_for('student.planner') }}" class="btn btn-primary btn-sm">Add Task</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Row -->
+<div class="grid-2 mb-6" style="margin-top:1.5rem">
+  <!-- Recent Quiz Attempts -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Recent Quiz Results</h3>
+      <a href="{{ url_for('student.quizzes') }}" class="btn btn-ghost btn-sm">All Quizzes →</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if recent_attempts %}
+        {% for attempt in recent_attempts %}
+        <a href="{{ url_for('student.quiz_result', attempt_id=attempt.id) }}" style="display:flex;align-items:center;gap:1rem;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);text-decoration:none;transition:background .15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <div style="width:40px;height:40px;border-radius:50%;background:{% if attempt.score >= 80 %}var(--success){% elif attempt.score >= 60 %}var(--warning){% else %}var(--error){% endif %};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;flex-shrink:0">{{ attempt.score|int }}%</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.875rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ attempt.quiz.title }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">{{ attempt.correct_answers }}/{{ attempt.total_questions }} correct · {{ attempt.completed_at.strftime('%b %d') }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:2rem">
+          <div class="empty-icon">❓</div>
+          <h3>No quizzes taken yet</h3>
+          <a href="{{ url_for('student.workspace') }}" class="btn btn-primary btn-sm">Generate Quiz</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recent Documents -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Recent Documents</h3>
+      <a href="{{ url_for('student.workspace') }}" class="btn btn-ghost btn-sm">Workspace →</a>
+    </div>
+    <div class="card-body" style="padding:0">
+      {% if recent_docs %}
+        {% for doc in recent_docs %}
+        <a href="{{ url_for('student.document_view', doc_id=doc.id) }}" style="display:flex;align-items:center;gap:1rem;padding:.875rem 1.5rem;border-bottom:1px solid var(--border);text-decoration:none;transition:background .15s" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <div style="width:38px;height:38px;border-radius:8px;background:var(--primary-50);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0">{{ '📄' if doc.file_type == 'pdf' else '📃' }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.875rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ doc.original_name }}</div>
+            <div style="font-size:.7rem;color:var(--text-muted)">{{ doc.subject }} · {{ doc.word_count }} words · {{ doc.created_at.strftime('%b %d') }}</div>
+          </div>
+          <span class="badge badge-{{ 'success' if doc.is_processed else 'warning' }}" style="flex-shrink:0">{{ 'Ready' if doc.is_processed else 'Processing' }}</span>
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" style="padding:2rem">
+          <div class="empty-icon">📄</div>
+          <h3>No documents yet</h3>
+          <a href="{{ url_for('student.workspace') }}" class="btn btn-primary btn-sm">Upload Document</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid-4">
+  <div class="card" style="text-align:center;padding:1.25rem">
+    <div style="font-size:1.5rem;margin-bottom:.5rem">📝</div>
+    <div style="font-size:1.5rem;font-weight:800;font-family:'Outfit',sans-serif">{{ stats.total_notes }}</div>
+    <div style="font-size:.75rem;color:var(--text-muted)">Notes Created</div>
+  </div>
+  <div class="card" style="text-align:center;padding:1.25rem">
+    <div style="font-size:1.5rem;margin-bottom:.5rem">❓</div>
+    <div style="font-size:1.5rem;font-weight:800;font-family:'Outfit',sans-serif">{{ stats.total_quizzes }}</div>
+    <div style="font-size:.75rem;color:var(--text-muted)">Quizzes</div>
+  </div>
+  <div class="card" style="text-align:center;padding:1.25rem">
+    <div style="font-size:1.5rem;margin-bottom:.5rem">🃏</div>
+    <div style="font-size:1.5rem;font-weight:800;font-family:'Outfit',sans-serif">{{ stats.total_flashcard_sets }}</div>
+    <div style="font-size:.75rem;color:var(--text-muted)">Flashcard Sets</div>
+  </div>
+  <div class="card" style="text-align:center;padding:1.25rem">
+    <div style="font-size:1.5rem;margin-bottom:.5rem">📄</div>
+    <div style="font-size:1.5rem;font-weight:800;font-family:'Outfit',sans-serif">{{ stats.total_docs }}</div>
+    <div style="font-size:.75rem;color:var(--text-muted)">Documents</div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Make `now` available for due date comparisons in the template
+  // (handled via Python in route if needed)
+</script>
+{% endblock %}

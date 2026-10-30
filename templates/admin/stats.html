@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Platform Analytics{% endblock %}
+{% block page_title %}Analytics & Growth{% endblock %}
+{% block page_subtitle %}In-depth insights into platform usage, content distribution, and student registration trends{% endblock %}
+
+{% block content %}
+<!-- 6-Month Growth Trend -->
+<div class="card" style="padding: 1.75rem; margin-bottom: 2rem;">
+  <h3 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; font-weight: 700;">6-Month Student Registration Growth</h3>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.5rem 0;">Monthly new student sign-ups across the platform</p>
+
+  <div style="display:flex; align-items:flex-end; justify-content:space-around; height: 180px; padding: 1rem 0; border-bottom: 1px solid #eee;">
+    {% for item in monthly_data %}
+    {% set bar_h = (item.count * 25) if (item.count * 25) <= 140 else 140 %}
+    <div style="display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end;">
+      <div style="font-size:0.8rem; font-weight:700; color:var(--primary); margin-bottom: 4px;">{{ item.count }}</div>
+      <div style="width: 38px; background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 100%); height: {{ bar_h if bar_h > 12 else 12 }}px; border-radius: 6px 6px 0 0; transition: height 0.3s ease;"></div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top: 8px; font-weight:500;">{{ item.month }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+  
+  <!-- Subject Distribution -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 style="margin: 0 0 1rem 0; font-size: 1.15rem; font-weight: 700;">Content Distribution by Subject</h3>
+    {% if subject_data %}
+    <div style="display:flex; flex-direction:column; gap: 0.85rem;">
+      {% for subj, count in subject_data %}
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.75rem 1rem; background:#f9f9fd; border-radius:var(--radius-sm); border:1px solid #eee;">
+        <span style="font-weight:600; font-size:0.9rem;">📚 {{ subj }}</span>
+        <span class="badge badge-primary">{{ count }} items</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); font-size:0.875rem;">No subject metrics yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Quiz Difficulty Distribution -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 style="margin: 0 0 1rem 0; font-size: 1.15rem; font-weight: 700;">Quiz Difficulty Breakdown</h3>
+    {% if difficulty_data %}
+    <div style="display:flex; flex-direction:column; gap: 0.85rem;">
+      {% for diff, count in difficulty_data %}
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.75rem 1rem; background:#f9f9fd; border-radius:var(--radius-sm); border:1px solid #eee;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.1rem;">
+            {% if diff == 'easy' %}🌱{% elif diff == 'hard' %}🔥{% else %}⚡{% endif %}
+          </span>
+          <span style="font-weight:600; font-size:0.9rem; text-transform:capitalize;">{{ diff }} Difficulty</span>
+        </div>
+        <span class="badge {% if diff == 'easy' %}badge-success{% elif diff == 'hard' %}badge-danger{% else %}badge-warning{% endif %}">
+          {{ count }} quizzes
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); font-size:0.875rem;">No difficulty data yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

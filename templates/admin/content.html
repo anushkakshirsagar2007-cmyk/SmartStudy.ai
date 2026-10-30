@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Content Management{% endblock %}
+{% block page_title %}Platform Content{% endblock %}
+{% block page_subtitle %}Review, moderate, and manage student study materials across SmartStudy.ai{% endblock %}
+
+{% block content %}
+<!-- Overview Counts -->
+<div class="stats-grid" style="margin-bottom: 2rem;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">📝</div>
+    <div>
+      <div class="stat-value">{{ notes|length }}</div>
+      <div class="stat-label">Recent Notes</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(0, 184, 148, 0.15); color: #00b894;">❓</div>
+    <div>
+      <div class="stat-value">{{ quizzes|length }}</div>
+      <div class="stat-label">Recent Quizzes</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(9, 132, 227, 0.15); color: #0984e3;">📄</div>
+    <div>
+      <div class="stat-value">{{ documents|length }}</div>
+      <div class="stat-label">Recent Documents</div>
+    </div>
+  </div>
+</div>
+
+<!-- Content Moderation Sections -->
+<div style="display:flex; flex-direction:column; gap: 2rem;">
+  
+  <!-- Quizzes Section -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 style="margin:0 0 1rem 0; font-size:1.15rem; font-weight:700;">Platform Quizzes</h3>
+    {% if quizzes %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse: collapse; font-size:0.875rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid #eee; text-align:left; color:var(--text-muted);">
+            <th style="padding:0.75rem 0.5rem;">Quiz Title</th>
+            <th style="padding:0.75rem 0.5rem;">Author / Student</th>
+            <th style="padding:0.75rem 0.5rem;">Subject</th>
+            <th style="padding:0.75rem 0.5rem;">Difficulty</th>
+            <th style="padding:0.75rem 0.5rem;">AI Generated</th>
+            <th style="padding:0.75rem 0.5rem; text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in quizzes %}
+          <tr style="border-bottom: 1px solid #f2f2f7;">
+            <td style="padding:0.75rem 0.5rem; font-weight:600;">{{ q.title }}</td>
+            <td style="padding:0.75rem 0.5rem;">{{ q.creator.full_name if q.creator else 'System' }}</td>
+            <td style="padding:0.75rem 0.5rem;">{{ q.subject }}</td>
+            <td style="padding:0.75rem 0.5rem;">
+              <span class="badge {% if q.difficulty == 'easy' %}badge-success{% elif q.difficulty == 'hard' %}badge-danger{% else %}badge-warning{% endif %}" style="text-transform:capitalize;">
+                {{ q.difficulty }}
+              </span>
+            </td>
+            <td style="padding:0.75rem 0.5rem;">{{ '✓ Yes' if q.is_ai_generated else 'No' }}</td>
+            <td style="padding:0.75rem 0.5rem; text-align:right;">
+              <form method="POST" action="{{ url_for('admin.admin_delete_quiz', quiz_id=q.id) }}" onsubmit="return confirm('Delete this quiz as admin?');" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--danger);" title="Delete quiz">
+                  🗑️ Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); font-size:0.875rem;">No quizzes recorded.</p>
+    {% endif %}
+  </div>
+
+  <!-- Study Notes Section -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 style="margin:0 0 1rem 0; font-size:1.15rem; font-weight:700;">Recent Study Notes</h3>
+    {% if notes %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse: collapse; font-size:0.875rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid #eee; text-align:left; color:var(--text-muted);">
+            <th style="padding:0.75rem 0.5rem;">Note Title</th>
+            <th style="padding:0.75rem 0.5rem;">Student</th>
+            <th style="padding:0.75rem 0.5rem;">Subject</th>
+            <th style="padding:0.75rem 0.5rem;">Created</th>
+            <th style="padding:0.75rem 0.5rem; text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for n in notes %}
+          <tr style="border-bottom: 1px solid #f2f2f7;">
+            <td style="padding:0.75rem 0.5rem; font-weight:600;">{{ n.title }}</td>
+            <td style="padding:0.75rem 0.5rem;">{{ n.author.full_name if n.author else 'System' }}</td>
+            <td style="padding:0.75rem 0.5rem;">{{ n.subject }}</td>
+            <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ n.created_at.strftime('%b %d, %Y') }}</td>
+            <td style="padding:0.75rem 0.5rem; text-align:right;">
+              <form method="POST" action="{{ url_for('admin.admin_delete_note', note_id=n.id) }}" onsubmit="return confirm('Delete this note as admin?');" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--danger);" title="Delete note">
+                  🗑️ Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); font-size:0.875rem;">No notes recorded.</p>
+    {% endif %}
+  </div>
+
+  <!-- Documents Section -->
+  <div class="card" style="padding: 1.5rem;">
+    <h3 style="margin:0 0 1rem 0; font-size:1.15rem; font-weight:700;">Uploaded Documents</h3>
+    {% if documents %}
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse: collapse; font-size:0.875rem;">
+        <thead>
+          <tr style="border-bottom: 2px solid #eee; text-align:left; color:var(--text-muted);">
+            <th style="padding:0.75rem 0.5rem;">Document Name</th>
+            <th style="padding:0.75rem 0.5rem;">Student</th>
+            <th style="padding:0.75rem 0.5rem;">Subject</th>
+            <th style="padding:0.75rem 0.5rem;">Words</th>
+            <th style="padding:0.75rem 0.5rem;">Upload Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in documents %}
+          <tr style="border-bottom: 1px solid #f2f2f7;">
+            <td style="padding:0.75rem 0.5rem; font-weight:600;">📄 {{ d.original_name }}</td>
+            <td style="padding:0.75rem 0.5rem;">{{ d.uploader.full_name if d.uploader else 'System' }}</td>
+            <td style="padding:0.75rem 0.5rem;">{{ d.subject }}</td>
+            <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ d.word_count }}</td>
+            <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ d.created_at.strftime('%b %d, %Y') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); font-size:0.875rem;">No documents uploaded yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

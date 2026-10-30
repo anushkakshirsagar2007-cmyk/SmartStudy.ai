@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Manage Students{% endblock %}
+{% block page_title %}Students Directory{% endblock %}
+{% block page_subtitle %}View registered students, inspect learning engagement, and manage accounts{% endblock %}
+
+{% block content %}
+<!-- Search and Filter Bar -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+  <form method="GET" action="{{ url_for('admin.students') }}" style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center;">
+    <div style="flex:2; min-width:240px; position:relative;">
+      <input type="text" name="search" value="{{ search }}" class="form-control" placeholder="Search by student name, email, or username...">
+    </div>
+
+    <div style="flex:1; min-width:160px;">
+      <select name="status" class="form-control" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active Only</option>
+        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive / Suspended</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Search</button>
+    {% if search or status_filter %}
+    <a href="{{ url_for('admin.students') }}" class="btn btn-secondary">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Students Table -->
+<div class="card" style="padding: 1.5rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.25rem;">
+    <h3 style="margin:0; font-size:1.15rem; font-weight:700;">Students List ({{ students|length }})</h3>
+  </div>
+
+  {% if students %}
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse: collapse; font-size:0.875rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid #eee; text-align:left; color:var(--text-muted);">
+          <th style="padding:0.75rem 0.5rem;">Student</th>
+          <th style="padding:0.75rem 0.5rem;">Email</th>
+          <th style="padding:0.75rem 0.5rem;">Subject Focus</th>
+          <th style="padding:0.75rem 0.5rem;">Notes</th>
+          <th style="padding:0.75rem 0.5rem;">Quizzes</th>
+          <th style="padding:0.75rem 0.5rem;">Status</th>
+          <th style="padding:0.75rem 0.5rem; text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+        <tr style="border-bottom: 1px solid #f2f2f7;">
+          <td style="padding:0.75rem 0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              <div style="width:34px; height:34px; border-radius:50%; background:{{ s.avatar_color }}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700;">
+                {{ s.initials }}
+              </div>
+              <div>
+                <a href="{{ url_for('admin.student_detail', user_id=s.id) }}" style="font-weight:700; color:var(--primary); text-decoration:none;">
+                  {{ s.full_name }}
+                </a>
+                <div style="font-size:0.75rem; color:var(--text-muted);">@{{ s.username }}</div>
+              </div>
+            </div>
+          </td>
+          <td style="padding:0.75rem 0.5rem; color:var(--text-muted);">{{ s.email }}</td>
+          <td style="padding:0.75rem 0.5rem;">{{ s.preferred_subject or 'General' }}</td>
+          <td style="padding:0.75rem 0.5rem; font-weight:600;">{{ s.notes.count() }}</td>
+          <td style="padding:0.75rem 0.5rem; font-weight:600;">{{ s.quiz_attempts.count() }}</td>
+          <td style="padding:0.75rem 0.5rem;">
+            {% if s.is_active %}
+            <span class="badge badge-success">Active</span>
+            {% else %}
+            <span class="badge badge-danger">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="padding:0.75rem 0.5rem; text-align:right;">
+            <div style="display:flex; gap:0.4rem; justify-content:flex-end; align-items:center;">
+              <a href="{{ url_for('admin.student_detail', user_id=s.id) }}" class="btn btn-sm btn-secondary" title="View details">
+                👁️ View
+              </a>
+              <form method="POST" action="{{ url_for('admin.toggle_student_status', user_id=s.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-sm {% if s.is_active %}btn-ghost{% else %}btn-primary{% endif %}" title="Toggle account status">
+                  {% if s.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('admin.delete_student', user_id=s.id) }}" onsubmit="return confirm('Permanently delete {{ s.full_name }} and all their study data?');" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--danger);" title="Delete student">
+                  🗑️
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center; padding: 3rem 1rem; color:var(--text-muted);">
+    <span style="font-size:2rem; display:block; margin-bottom:0.5rem;">🔍</span>
+    No students found matching your criteria.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

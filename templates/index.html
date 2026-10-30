@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SmartStudy.ai – Your AI-powered study partner. Generate notes, quizzes, flashcards, and chat with AI." />
+  <title>SmartStudy.ai – Your AI-Powered Study Partner</title>
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" type="image/png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <style>
+    .stats-strip { background: rgba(255,255,255,.07); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 1.5rem 2rem; display: flex; gap: 3rem; justify-content: center; flex-wrap: wrap; margin-top: 3rem; }
+    .strip-stat { text-align: center; }
+    .strip-val { font-size: 1.75rem; font-weight: 800; color: #fff; font-family: 'Outfit', sans-serif; }
+    .strip-label { font-size: .75rem; color: rgba(255,255,255,.55); margin-top: .25rem; }
+    .floating-card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15); border-radius: 12px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: .75rem; color: #fff; font-size: .85rem; font-weight: 500; backdrop-filter: blur(8px); animation: float 3s ease-in-out infinite; }
+    .floating-card:nth-child(2) { animation-delay: -1.5s; }
+    @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
+    .floating-cards { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2.5rem; }
+  </style>
+  <link rel="canonical" href="{{ site_url }}/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SmartStudy.ai" />
+  <meta property="og:title" content="SmartStudy.ai – Your AI-Powered Study Partner" />
+  <meta property="og:description" content="Turn your PDFs and notes into summaries, quizzes and flashcards with AI. Plan your study time and track progress." />
+  <meta property="og:url" content="{{ site_url }}/" />
+  <meta name="twitter:card" content="summary" />
+</head>
+<body>
+  <div class="landing">
+    <!-- Nav -->
+    <nav class="landing-nav">
+      <a href="/" class="logo-link" style="display:flex;align-items:center;gap:.75rem;text-decoration:none">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="SmartStudy.ai Logo" style="width:40px;height:40px;border-radius:10px;object-fit:cover;box-shadow:0 4px 15px rgba(124,58,237,0.4);" />
+        <div class="logo-text" style="color:#fff;font-size:1.35rem;font-weight:800;font-family:'Outfit',sans-serif;">SmartStudy<span style="color:#A78BFA">.ai</span></div>
+      </a>
+      <div style="display:flex;align-items:center;gap:1rem">
+        <a href="{{ url_for('main.pricing') }}" style="color:rgba(255,255,255,.8);font-weight:600;font-size:.9rem;text-decoration:none;padding:.5rem .85rem;border-radius:8px;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">Pricing</a>
+        <a href="{{ url_for('auth.login') }}" style="color:rgba(255,255,255,.8);font-weight:600;font-size:.9rem;text-decoration:none;padding:.5rem 1rem;border-radius:8px;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='transparent'">Sign In</a>
+        <a href="{{ url_for('auth.register') }}" class="hero-btn-primary" style="padding:.6rem 1.25rem;font-size:.9rem">Get Started Free</a>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="landing-hero">
+      <div class="hero-glow"></div>
+      <div style="position:relative;z-index:1;max-width:800px">
+        <div style="display:inline-flex;align-items:center;gap:.5rem;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);border-radius:100px;padding:.35rem 1rem;margin-bottom:1.5rem;font-size:.8rem;color:#C4B5FD;font-weight:600">
+          ✦ Powered by OpenAI GPT &nbsp;·&nbsp; 100% Free to Start
+        </div>
+        <h1 class="hero-title">
+          Study Smarter with<br /><span class="gradient-text">AI at Your Side</span>
+        </h1>
+        <p class="hero-subtitle">
+          Upload documents, generate notes & quizzes, create flashcards, and get instant AI-powered answers. Your personal study partner is here.
+        </p>
+        <div class="hero-actions">
+          <a href="{{ url_for('auth.register') }}" class="hero-btn-primary">
+            🚀 Start Studying Free
+          </a>
+          <a href="{{ url_for('auth.login') }}" class="hero-btn-outline">
+            Sign In →
+          </a>
+        </div>
+
+        <!-- Floating cards showing AI features -->
+        <div class="floating-cards">
+          <div class="floating-card">📄 &nbsp;PDF → Study Notes</div>
+          <div class="floating-card">❓ &nbsp;AI Quiz Generator</div>
+          <div class="floating-card">🃏 &nbsp;Smart Flashcards</div>
+          <div class="floating-card">💬 &nbsp;Ask AI Anything</div>
+        </div>
+
+        <!-- Stats strip -->
+        <div class="stats-strip">
+          <div class="strip-stat"><div class="strip-val">AI-Powered</div><div class="strip-label">Note & Quiz Generation</div></div>
+          <div class="strip-stat"><div class="strip-val">Instant</div><div class="strip-label">Document Analysis</div></div>
+          <div class="strip-stat"><div class="strip-val">100%</div><div class="strip-label">Private & Secure</div></div>
+          <div class="strip-stat"><div class="strip-val">Free</div><div class="strip-label">To Get Started</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features-section">
+      <div style="text-align:center;max-width:560px;margin:0 auto">
+        <div class="badge badge-primary" style="font-size:.8rem;padding:.35rem .875rem;margin-bottom:1rem">Everything You Need</div>
+        <h2 style="margin-bottom:1rem">The Complete AI Study Platform</h2>
+        <p>Everything a student needs to learn faster, retain more, and perform better — all in one beautiful, intelligent platform.</p>
+      </div>
+
+      <div class="features-grid">
+        {% set features = [
+          ('⚡', '#F5F3FF', '🟣', 'AI Study Workspace', 'Upload PDFs, DOCX, and text files. Our AI extracts content and generates structured study notes automatically.'),
+          ('❓', '#FFF7ED', '🟠', 'Quiz Generator', 'Create multiple-choice quizzes from any document with AI. Practice, score yourself, and review detailed explanations.'),
+          ('🃏', '#F0FDF4', '🟢', 'Smart Flashcards', 'AI-generated flip cards for efficient memorization. Track mastery progress as you study.'),
+          ('💬', '#EFF6FF', '🔵', 'AI Chat Assistant', 'Ask questions about your documents and get intelligent, context-aware answers instantly.'),
+          ('📅', '#FDF4FF', '💜', 'Study Planner', 'Organize tasks with priorities, deadlines, and status tracking. Never miss an assignment again.'),
+          ('📈', '#ECFDF5', '🟢', 'Progress Analytics', 'Visualize your study activity, quiz scores, and learning trends with beautiful charts.'),
+          ('📝', '#FFFBEB', '🟡', 'Notes Manager', 'Create, edit, search, and bookmark notes. Rich markdown support with subject organization.'),
+          ('🔒', '#FEF2F2', '🔴', 'Private & Secure', 'Your documents and study data are completely private — other students cannot access your content.')
+        ] %}
+        {% for icon, bg, _, title, desc in features %}
+        <div class="feature-card">
+          <div class="feature-icon-wrap" style="background:{{ bg }}">{{ icon }}</div>
+          <div class="feature-title">{{ title }}</div>
+          <p class="feature-desc">{{ desc }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section style="background:linear-gradient(135deg,#0F0525,#2D1259);padding:5rem 5%;text-align:center">
+      <h2 style="color:#fff;font-size:clamp(1.75rem,4vw,2.5rem);margin-bottom:1rem">Ready to Study Smarter?</h2>
+      <p style="color:rgba(255,255,255,.65);max-width:480px;margin:0 auto 2rem;font-size:1rem">Join students using AI to learn faster and score higher. Free to get started.</p>
+      <a href="{{ url_for('auth.register') }}" class="hero-btn-primary" style="font-size:1.0625rem;padding:1rem 2.25rem">
+        Create Free Account →
+      </a>
+    </section>
+
+    <footer class="landing-footer">
+      <p>© 2026 SmartStudy.ai – Your AI-Powered Study Partner &nbsp;·&nbsp; Built with Flask + OpenAI</p>
+      <p style="font-size:.85rem"><a href="{{ url_for('main.terms') }}">Terms</a> · <a href="{{ url_for('main.privacy') }}">Privacy</a> · <a href="{{ url_for('main.refund') }}">Refunds</a></p>
+    </footer>
+  </div>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

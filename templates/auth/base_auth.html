@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}{% endblock %} | SmartStudy.ai</title>
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" type="image/png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% include '_csrf.html' %}
+</head>
+<body>
+  <div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% for category, msg in messages %}
+        <div class="flash-msg {{ category }}">
+          <span>{% if category == 'success' %}✓{% elif category == 'error' %}✕{% else %}ℹ{% endif %}</span>
+          <span>{{ msg }}</span>
+          <button class="flash-close">✕</button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+  <div class="auth-page">
+    <div class="auth-card">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

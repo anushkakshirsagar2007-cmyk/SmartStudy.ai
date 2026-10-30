@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Flashcards{% endblock %}
+{% block page_title %}Flashcards{% endblock %}
+{% block page_subtitle %}Master key concepts through spaced repetition and interactive study decks{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('student.workspace') }}" class="btn btn-primary">
+  <span>⚡</span> Generate New Deck
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Overview Stats -->
+<div class="stats-grid" style="margin-bottom: 2rem;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(108, 92, 231, 0.12); color: var(--primary);">🃏</div>
+    <div>
+      <div class="stat-value">{{ sets|length }}</div>
+      <div class="stat-label">Decks Created</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(9, 132, 227, 0.15); color: #0984e3;">📑</div>
+    <div>
+      {% set ns = namespace(total=0) %}
+      {% for s in sets %}{% set ns.total = ns.total + s.flashcards.count() %}{% endfor %}
+      <div class="stat-value">{{ ns.total }}</div>
+      <div class="stat-label">Total Flashcards</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background: rgba(0, 184, 148, 0.15); color: #00b894;">🧠</div>
+    <div>
+      <div class="stat-value">Spaced Repetition</div>
+      <div class="stat-label">Active Learning</div>
+    </div>
+  </div>
+</div>
+
+<!-- Decks Grid -->
+{% if sets %}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;">
+  {% for s in sets %}
+  {% set all_cards = s.flashcards.all() %}
+  {% set mastered_count = all_cards|selectattr('is_mastered')|list|length %}
+  {% set pct = (mastered_count / all_cards|length * 100)|round(0)|int if all_cards|length > 0 else 0 %}
+
+  <div class="card" style="display:flex; flex-direction:column; justify-content:space-between; padding: 1.5rem; border-top: 4px solid var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: transform 0.2s, box-shadow 0.2s;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.5rem;">
+        <span class="badge badge-primary" style="font-size:0.75rem;">📚 {{ s.subject }}</span>
+        {% if s.is_ai_generated %}
+        <span class="badge" style="background:rgba(108, 92, 231, 0.1); color:var(--primary); font-size:0.7rem;">✨ AI</span>
+        {% endif %}
+      </div>
+
+      <h3 style="margin: 0.5rem 0 0.5rem 0; font-size: 1.15rem; font-weight: 700; color:var(--text-main);">
+        {{ s.title }}
+      </h3>
+
+      {% if s.description %}
+      <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; margin: 0 0 1rem 0;">
+        {{ s.description }}
+      </p>
+      {% endif %}
+
+      <!-- Progress toward mastery -->
+      <div style="margin: 1rem 0;">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:0.35rem; color:var(--text-muted);">
+          <span>Mastery Progress</span>
+          <span style="font-weight:700; color:var(--primary);">{{ mastered_count }}/{{ all_cards|length }} ({{ pct }}%)</span>
+        </div>
+        <div style="background:#eef0f8; border-radius:8px; height:7px; overflow:hidden;">
+          <div style="background:var(--success); width:{{ pct }}%; height:100%; border-radius:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #f0f0f7;">
+      <form method="POST" action="{{ url_for('student.delete_flashcard_set', set_id=s.id) }}" onsubmit="return confirm('Delete this flashcard deck?');" style="display:inline;">
+        <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--danger);" title="Delete Deck">🗑️</button>
+      </form>
+
+      <a href="{{ url_for('student.flashcard_set', set_id=s.id) }}" class="btn btn-primary btn-sm" style="padding:0.45rem 1.25rem;">
+        Study Deck ({{ all_cards|length }}) 🎴
+      </a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding: 3.5rem 1.5rem;">
+  <div style="font-size: 3rem; margin-bottom: 1rem;">🃏</div>
+  <h3 style="margin-bottom: 0.5rem;">No Flashcard Decks Yet</h3>
+  <p style="color:var(--text-muted); max-width: 440px; margin: 0 auto 1.5rem auto; font-size:0.92rem;">
+    Turn any lecture notes, textbook passages, or topic into interactive flashcard decks with one click in the AI Workspace!
+  </p>
+  <a href="{{ url_for('student.workspace') }}" class="btn btn-primary">
+    Generate Flashcards in AI Workspace
+  </a>
+</div>
+{% endif %}
+{% endblock %}

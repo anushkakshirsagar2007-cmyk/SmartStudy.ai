@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Account Settings{% endblock %}
+{% block page_title %}Profile & Settings{% endblock %}
+{% block page_subtitle %}Manage your account details, study preferences, and security settings{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+  
+  <!-- Left: Profile Summary Card -->
+  <div class="card" style="padding: 2rem 1.5rem; text-align:center;">
+    <div style="width: 84px; height: 84px; border-radius: 50%; background: {{ current_user.avatar_color }}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 800; margin: 0 auto 1rem auto; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.25);">
+      {{ current_user.initials }}
+    </div>
+
+    <h3 style="margin: 0 0 0.25rem 0; font-size: 1.25rem; font-weight: 700;">{{ current_user.full_name }}</h3>
+    <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">@{{ current_user.username }}</div>
+    <span class="badge badge-primary" style="text-transform: capitalize; font-size: 0.8rem; padding: 0.3rem 0.85rem;">
+      {{ current_user.role }} Account
+    </span>
+
+    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #f0f0f7; text-align: left; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.75rem;">
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">Email:</span>
+        <span style="font-weight:600;">{{ current_user.email }}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">Target Subject:</span>
+        <span style="font-weight:600;">{{ current_user.preferred_subject or 'All Subjects' }}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">Daily Goal:</span>
+        <span style="font-weight:600;">{{ current_user.study_goal_hours }} hrs/day</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">Member Since:</span>
+        <span style="font-weight:600;">{{ current_user.created_at.strftime('%b %Y') }}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+        <span style="color:var(--text-muted);">Plan:</span>
+        <span class="badge {{ 'badge-success' if current_user.is_pro else 'badge-warning' }}" style="font-size: 0.75rem;">
+          {{ PLAN_DETAILS[current_user.subscription_plan]['name'] if current_user.subscription_plan in PLAN_DETAILS else 'Free Tier' }}
+        </span>
+      </div>
+      {% if not current_user.is_pro %}
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">Uploads Left:</span>
+        <span style="font-weight:700; color: #10B981;">{{ current_user.uploads_remaining }} of {{ FREE_UPLOAD_LIMIT }}</span>
+      </div>
+      {% endif %}
+      <a href="{{ url_for('payment.pricing') }}" class="btn btn-primary btn-sm" style="margin-top: 0.5rem; text-align: center; justify-content: center; font-size: 0.8rem;">
+        💎 {% if current_user.is_pro %}Manage Plan{% else %}Upgrade to Pro{% endif %}
+      </a>
+    </div>
+  </div>
+
+  <!-- Right: Edit Profile & Password Tabs -->
+  <div style="display:flex; flex-direction:column; gap: 2rem;">
+    
+    <!-- Edit Profile Form -->
+    <div class="card" style="padding: 1.75rem;">
+      <h3 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; font-weight: 700;">Personal Information</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.5rem 0;">Update your display name, study focus, and goals</p>
+
+      <form method="POST" action="{{ url_for('student.profile') }}">
+        <input type="hidden" name="action" value="update_profile">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+          <div class="form-group">
+            <label class="form-label" for="full_name">Full Name *</label>
+            <input type="text" id="full_name" name="full_name" class="form-control" value="{{ current_user.full_name }}" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="preferred_subject">Preferred / Major Subject</label>
+            <input type="text" id="preferred_subject" name="preferred_subject" class="form-control" value="{{ current_user.preferred_subject or '' }}" placeholder="e.g. Computer Science, Medicine">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+          <div class="form-group">
+            <label class="form-label" for="study_goal_hours">Daily Study Goal (Hours)</label>
+            <input type="number" id="study_goal_hours" name="study_goal_hours" class="form-control" step="0.5" min="0.5" max="16" value="{{ current_user.study_goal_hours }}">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="avatar_color">Avatar Color Theme</label>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <input type="color" id="avatar_color" name="avatar_color" value="{{ current_user.avatar_color }}" style="height:42px; width:60px; padding:2px; border-radius:8px; border:1px solid #ccc; cursor:pointer;">
+              <span style="font-size:0.85rem; color:var(--text-muted);">Pick profile color</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label class="form-label" for="bio">Bio / Academic Interests</label>
+          <textarea id="bio" name="bio" class="form-control" rows="3" placeholder="Tell us about your learning objectives or current studies...">{{ current_user.bio or '' }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          Save Profile Changes
+        </button>
+      </form>
+    </div>
+
+    <!-- Change Password Form -->
+    <div class="card" style="padding: 1.75rem;">
+      <h3 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; font-weight: 700;">Security & Password</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 1.5rem 0;">Change your password to keep your account secure</p>
+
+      <form method="POST" action="{{ url_for('student.profile') }}">
+        <input type="hidden" name="action" value="change_password">
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" for="current_password">Current Password *</label>
+          <input type="password" id="current_password" name="current_password" class="form-control" required placeholder="••••••••">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.5rem;">
+          <div class="form-group">
+            <label class="form-label" for="new_password">New Password *</label>
+            <input type="password" id="new_password" name="new_password" class="form-control" required placeholder="Minimum 8 characters">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="confirm_password">Confirm New Password *</label>
+            <input type="password" id="confirm_password" name="confirm_password" class="form-control" required placeholder="Repeat new password">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-secondary">
+          Update Password 🔒
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

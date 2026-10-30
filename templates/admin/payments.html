@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Payments{% endblock %}
+{% block page_title %}Payment Approvals{% endblock %}
+{% block page_subtitle %}Confirm UPI payments only after the money appears in your bank account{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:1.5rem;">
+  <h3 style="margin-bottom:1rem;">Awaiting confirmation ({{ pending|length }})</h3>
+  {% if pending %}
+  <div style="overflow-x:auto;"><table class="table" style="width:100%;">
+    <thead><tr><th>Student</th><th>Plan</th><th>Amount</th><th>UTR</th><th>Submitted</th><th></th></tr></thead>
+    <tbody>
+    {% for s in pending %}{% set u = users.get(s.user_id) %}
+    <tr>
+      <td>{{ u.full_name if u else 'Deleted user' }}<br><small>{{ u.email if u else '' }}</small></td>
+      <td>{{ PLAN_DETAILS[s.plan_type].name }}</td>
+      <td>₹{{ s.amount_paise // 100 }}</td>
+      <td><code>{{ s.payment_reference }}</code></td>
+      <td>{{ s.created_at.strftime('%d %b %Y %H:%M') }}</td>
+      <td style="white-space:nowrap;">
+        <form method="POST" action="{{ url_for('admin.approve_payment', sub_id=s.id) }}" style="display:inline" onsubmit="return confirm('Confirm that ₹{{ s.amount_paise // 100 }} with UTR {{ s.payment_reference }} has reached your account?');"><button class="btn btn-primary btn-sm">Approve</button></form>
+        <form method="POST" action="{{ url_for('admin.reject_payment', sub_id=s.id) }}" style="display:inline" onsubmit="return confirm('Reject this payment?');"><button class="btn btn-secondary btn-sm">Reject</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% else %}<p style="color:var(--text-muted,#888);">No payments are waiting for confirmation.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:1rem;">Recent decisions</h3>
+  {% if recent %}
+  <div style="overflow-x:auto;"><table class="table" style="width:100%;">
+    <thead><tr><th>Student</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>
+    {% for s in recent %}{% set u = users.get(s.user_id) %}
+    <tr><td>{{ u.full_name if u else 'Deleted user' }}</td><td>{{ PLAN_DETAILS[s.plan_type].name }}</td><td>₹{{ s.amount_paise // 100 }}</td>
+      <td><code>{{ s.payment_reference or '—' }}</code></td><td>{{ s.payment_status }}</td><td>{{ s.created_at.strftime('%d %b %Y') }}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% else %}<p style="color:var(--text-muted,#888);">Nothing yet.</p>{% endif %}
+</div>
+{% endblock %}

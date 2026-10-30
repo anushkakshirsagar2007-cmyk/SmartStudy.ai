@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Quiz Results: {{ quiz.title }}{% endblock %}
+{% block page_title %}Quiz Results{% endblock %}
+{% block page_subtitle %}{{ quiz.title }} · Completed on {{ attempt.completed_at.strftime('%b %d, %Y at %H:%M') }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('student.take_quiz', quiz_id=quiz.id) }}" class="btn btn-secondary">
+  🔄 Retake Quiz
+</a>
+<a href="{{ url_for('student.quizzes') }}" class="btn btn-primary">
+  Back to Quizzes
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Score Banner -->
+<div class="card" style="padding: 2rem; margin-bottom: 2rem; background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: #fff; text-align:center; position:relative; overflow:hidden;">
+  <div style="max-width: 500px; margin: 0 auto; position:relative; z-index:2;">
+    <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">
+      {% if attempt.score >= 80 %}🏆{% elif attempt.score >= 60 %}🎉{% else %}💪{% endif %}
+    </div>
+    <h2 style="font-size: 2.2rem; font-weight: 800; margin: 0 0 0.5rem 0; color:#fff;">
+      {{ attempt.score|round(1) }}% Score
+    </h2>
+    <p style="font-size: 1.05rem; opacity: 0.95; margin: 0 0 1.5rem 0;">
+      {% if attempt.score >= 85 %}
+        Outstanding performance! You have mastered this material!
+      {% elif attempt.score >= 70 %}
+        Great job! You have a solid grasp of these concepts.
+      {% elif attempt.score >= 50 %}
+        Good attempt! Review the explanations below to improve your score.
+      {% else %}
+        Keep practicing! Go over the detailed explanations below to build confidence.
+      {% endif %}
+    </p>
+
+    <!-- Stat boxes inside banner -->
+    <div style="display:flex; justify-content:center; gap: 1.5rem; flex-wrap:wrap;">
+      <div style="background: rgba(255, 255, 255, 0.2); padding: 0.75rem 1.25rem; border-radius: 12px; backdrop-filter: blur(8px);">
+        <div style="font-size: 1.3rem; font-weight: 800;">{{ attempt.correct_answers }} / {{ attempt.total_questions }}</div>
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9;">Correct Answers</div>
+      </div>
+      <div style="background: rgba(255, 255, 255, 0.2); padding: 0.75rem 1.25rem; border-radius: 12px; backdrop-filter: blur(8px);">
+        <div style="font-size: 1.3rem; font-weight: 800;">{{ attempt.total_questions - attempt.correct_answers }}</div>
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9;">Incorrect</div>
+      </div>
+      <div style="background: rgba(255, 255, 255, 0.2); padding: 0.75rem 1.25rem; border-radius: 12px; backdrop-filter: blur(8px);">
+        <div style="font-size: 1.3rem; font-weight: 800;">{{ attempt.time_taken }}s</div>
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9;">Time Taken</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detailed Questions Review -->
+<div style="margin-bottom: 1.5rem;">
+  <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Detailed Question Breakdown</h3>
+</div>
+
+<div style="display:flex; flex-direction:column; gap: 1.5rem;">
+  {% for q in questions %}
+  {% set user_choice = user_answers.get(q.id|string, '') %}
+  {% set is_correct = (user_choice.upper() == q.correct_answer.upper()) %}
+
+  <div class="card" style="padding: 1.5rem; border-left: 5px solid {% if is_correct %}#00b894{% else %}#e17055{% endif %};">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.75rem;">
+      <span class="badge" style="font-weight:700; font-size:0.75rem;">Question {{ loop.index }}</span>
+      <span class="badge {% if is_correct %}badge-success{% else %}badge-danger{% endif %}" style="font-size:0.8rem; font-weight:700;">
+        {% if is_correct %}✓ Correct{% else %}✕ Incorrect{% endif %}
+      </span>
+    </div>
+
+    <h4 style="margin: 0 0 1rem 0; font-size: 1.05rem; font-weight:600; line-height:1.5;">
+      {{ q.question_text }}
+    </h4>
+
+    <!-- Options Breakdown -->
+    <div style="display:flex; flex-direction:column; gap: 0.6rem; margin-bottom: 1rem;">
+      {% set options = [('A', q.option_a), ('B', q.option_b), ('C', q.option_c), ('D', q.option_d)] %}
+      {% for letter, text in options %}
+      {% if text %}
+        {% set is_opt_correct = (letter.upper() == q.correct_answer.upper()) %}
+        {% set is_opt_chosen = (letter.upper() == user_choice.upper()) %}
+
+        <div style="display:flex; align-items:center; gap:0.75rem; padding: 0.75rem 1rem; border-radius: var(--radius-sm); border: 1.5px solid 
+          {% if is_opt_correct %}#00b894; background: rgba(0, 184, 148, 0.08);
+          {% elif is_opt_chosen and not is_opt_correct %}#e17055; background: rgba(225, 112, 85, 0.08);
+          {% else %}#f0f0f5; background: #fff;{% endif %}">
+          
+          <span style="font-weight:800; min-width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem;
+            {% if is_opt_correct %}background:#00b894; color:#fff;
+            {% elif is_opt_chosen %}background:#e17055; color:#fff;
+            {% else %}background:#ececf3; color:var(--text-muted);{% endif %}">
+            {{ letter }}
+          </span>
+
+          <span style="flex:1; font-size: 0.9rem; {% if is_opt_correct %}font-weight:600; color:#00b894;{% elif is_opt_chosen and not is_opt_correct %}color:#d63031;{% endif %}">
+            {{ text }}
+          </span>
+
+          {% if is_opt_correct %}
+          <span style="font-size:0.8rem; font-weight:700; color:#00b894;">✓ Correct Answer</span>
+          {% elif is_opt_chosen %}
+          <span style="font-size:0.8rem; font-weight:700; color:#e17055;">Your Choice</span>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Explanation -->
+    {% if q.explanation %}
+    <div style="background: #f8f7ff; border: 1px solid #e8e4fb; border-radius: var(--radius-sm); padding: 0.85rem 1rem; font-size: 0.85rem; color: #4834d4;">
+      <span style="font-weight:700; display:block; margin-bottom: 0.25rem;">💡 Explanation:</span>
+      {{ q.explanation }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
