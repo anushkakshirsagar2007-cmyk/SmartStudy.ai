@@ -118,11 +118,26 @@ smartstudy/
 ## 🔒 Security notes
 CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, 10 MB upload limit, `SECRET_KEY` required, debug off by default. Never commit `.env`, `instance/` or `uploads/`.
 
-## 🚀 Deploying (PythonAnywhere free tier)
-1. Upload the project, create a virtualenv, `pip install -r requirements.txt`.
-2. Set environment variables in the WSGI file (`SECRET_KEY`, `OPENAI_API_KEY`, `FLASK_DEBUG=False`, `COOKIE_SECURE=1`, ...), then `from app import app as application`.
-3. Run `python init_db.py` in a console, then Reload the web app.
-Free accounts can only reach whitelisted sites: confirm your AI provider's domain is allowed.
+## 🚀 Deploying on Vercel with PostgreSQL
+The default local database is SQLite (`instance/smartstudy.db`). Do not use that file as production storage on Vercel: serverless instances can be replaced or scaled independently, so SQLite data is not reliably persistent or shared between instances.
+
+1. Create a managed PostgreSQL database (for example, Neon or Supabase). If the provider offers a pooled/serverless connection string, use that for the Vercel app. Keep the connection string private.
+2. In Vercel, open **Project → Settings → Environment Variables** and add `DATABASE_URL` with the provider's connection string. Also configure the required app secrets, including `SECRET_KEY`. Add variables to the environments you actually deploy (Production, Preview, and/or Development), then redeploy.
+3. Install the project requirements locally. To initialize the hosted schema and create the first admin, set `DATABASE_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in your local shell to the hosted database connection and a strong admin credential, then run `python init_db.py` from the project directory. This script creates missing tables and adds supported legacy columns without deleting existing data. Do not run it against a database containing data you do not intend this app to use.
+4. Open the database provider's console/table editor to view and manage records. Vercel's project dashboard does not display SQL table rows.
+
+On Windows PowerShell, environment variables for a one-time initialization can be set for the current terminal like this (replace the placeholders locally; do not paste credentials into source control or chat):
+
+```powershell
+$env:DATABASE_URL = "<private PostgreSQL connection string>"
+$env:ADMIN_EMAIL = "you@example.com"
+$env:ADMIN_PASSWORD = "<strong unique password>"
+python init_db.py
+```
+
+The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres://` or `postgresql://` URL, and uses SQLite locally when `DATABASE_URL` is unset. `psycopg` is included in `requirements.txt` as the PostgreSQL driver.
+
+**Vercel persistence limitation:** this database setup persists relational records, but uploaded files are currently written to the local `uploads/` directory. Move uploads to persistent object storage before relying on document uploads in production. Verify static assets and all app flows on the deployed Vercel URL before inviting users.
 
 
 ## 🛡️ Login limits, backups, SEO

@@ -11,6 +11,18 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 
+
+def _database_uri_from_env():
+    database_url = os.environ.get('DATABASE_URL', '').strip()
+    if not database_url:
+        return 'sqlite:///smartstudy.db'
+    if database_url.startswith('postgres://'):
+        return database_url.replace('postgres://', 'postgresql+psycopg://', 1)
+    if database_url.startswith('postgresql://'):
+        return database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+    return database_url
+
+
 def create_app():
     app = Flask(__name__)
     
@@ -28,7 +40,7 @@ def create_app():
     app.config['REMEMBER_COOKIE_HTTPONLY'] = True
     app.config['REMEMBER_COOKIE_SECURE'] = os.environ.get('COOKIE_SECURE') == '1'
     app.config['WTF_CSRF_TIME_LIMIT'] = None
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///smartstudy.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = _database_uri_from_env()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     # File uploads: Removed strict limit (1GB buffer) and added image formats (png, jpg, jpeg, webp)

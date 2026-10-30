@@ -256,6 +256,22 @@ def test_legacy_user_schema_migrates_without_dropping_data(tmp_path):
     engine.dispose()
 
 
+def test_database_url_supports_postgres_provider_formats(monkeypatch):
+    from extensions import _database_uri_from_env
+
+    monkeypatch.setenv('DATABASE_URL', 'postgres://user:pass@host/db')
+    assert _database_uri_from_env() == 'postgresql+psycopg://user:pass@host/db'
+
+    monkeypatch.setenv('DATABASE_URL', 'postgresql://user:pass@host/db')
+    assert _database_uri_from_env() == 'postgresql+psycopg://user:pass@host/db'
+
+    monkeypatch.setenv('DATABASE_URL', 'postgresql+psycopg://user:pass@host/db')
+    assert _database_uri_from_env() == 'postgresql+psycopg://user:pass@host/db'
+
+    monkeypatch.setenv('DATABASE_URL', '')
+    assert _database_uri_from_env() == 'sqlite:///smartstudy.db'
+
+
 def test_scanned_pdf_without_ai_key_shows_clear_message():
     student("scanpdf1@t.co")
     from pypdf import PdfWriter
