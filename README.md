@@ -122,9 +122,10 @@ CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, 10 MB u
 The default local database is SQLite (`instance/smartstudy.db`). Do not use that file as production storage on Vercel: serverless instances can be replaced or scaled independently, so SQLite data is not reliably persistent or shared between instances.
 
 1. Create a managed PostgreSQL database (for example, Neon or Supabase). If the provider offers a pooled/serverless connection string, use that for the Vercel app. Keep the connection string private.
-2. In Vercel, open **Project → Settings → Environment Variables** and add `DATABASE_URL` with the provider's connection string. Also configure the required app secrets, including `SECRET_KEY`. Add variables to the environments you actually deploy (Production, Preview, and/or Development), then redeploy.
-3. Install the project requirements locally. To initialize the hosted schema and create the first admin, set `DATABASE_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in your local shell to the hosted database connection and a strong admin credential, then run `python init_db.py` from the project directory. This script creates missing tables and adds supported legacy columns without deleting existing data. Do not run it against a database containing data you do not intend this app to use.
-4. Open the database provider's console/table editor to view and manage records. Vercel's project dashboard does not display SQL table rows.
+2. Import this repository into Vercel with the repository root as the **Root Directory**. Vercel detects the Flask application exported as `app` from `app.py`; `vercel.json` configures the function duration, and static assets are served from `public/static/`.
+3. In Vercel, open **Project → Settings → Environment Variables** and add `DATABASE_URL` with the provider's connection string. Also configure the required app secrets, including `SECRET_KEY`. Add variables to the environments you actually deploy (Production, Preview, and/or Development), then redeploy.
+4. Install the project requirements locally. To initialize the hosted schema and create the first admin, set `DATABASE_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in your local shell to the hosted database connection and a strong admin credential, then run `python init_db.py` from the project directory. This script creates missing tables and adds supported legacy columns without deleting existing data. Do not run it against a database containing data you do not intend this app to use.
+5. Open the database provider's console/table editor to view and manage records. Vercel's project dashboard does not display SQL table rows.
 
 On Windows PowerShell, environment variables for a one-time initialization can be set for the current terminal like this (replace the placeholders locally; do not paste credentials into source control or chat):
 
@@ -137,7 +138,7 @@ python init_db.py
 
 The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres://` or `postgresql://` URL, and uses SQLite locally when `DATABASE_URL` is unset. `psycopg` is included in `requirements.txt` as the PostgreSQL driver.
 
-**Vercel persistence limitation:** this database setup persists relational records, but uploaded files are currently written to the local `uploads/` directory. Move uploads to persistent object storage before relying on document uploads in production. Verify static assets and all app flows on the deployed Vercel URL before inviting users.
+**Vercel persistence limitation:** this database setup persists relational records, but uploaded files are currently written to the function's local `uploads/` directory and are not durable. Move uploads to persistent object storage before relying on document uploads in production. Verify static assets and all app flows on the deployed Vercel URL before inviting users.
 
 
 ## 🛡️ Login limits, backups, SEO

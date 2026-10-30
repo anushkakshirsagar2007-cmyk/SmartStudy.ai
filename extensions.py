@@ -24,7 +24,7 @@ def _database_uri_from_env():
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='public/static')
     
     # Configuration
     secret = os.environ.get('SECRET_KEY', '')

@@ -44,6 +44,24 @@ def test_register_login_dashboard():
 def test_dashboard_requires_login():
     assert app.test_client().get("/student/dashboard").status_code == 302
 
+
+def test_public_homepage_and_static_assets_load():
+    client = app.test_client()
+
+    homepage = client.get("/")
+    stylesheet = client.get("/static/css/style.css")
+    script = client.get("/static/js/main.js")
+    logo = client.get("/static/images/logo.png")
+
+    assert homepage.status_code == 200
+    assert b"SmartStudy.ai" in homepage.data
+    assert stylesheet.status_code == 200
+    assert b"body" in stylesheet.data
+    assert script.status_code == 200
+    assert logo.status_code == 200
+    assert logo.mimetype == "image/png"
+
+
 def test_upi_payment_needs_admin_approval():
     c, t = student("pay1@t.co")
     oid = js(c, "/payment/create-order", {"plan_type": "monthly"}, t).get_json()["order_id"]
