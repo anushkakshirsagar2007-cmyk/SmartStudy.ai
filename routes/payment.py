@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, current_app, render_template
 from flask_login import login_required, current_user
 from models import (
     Subscription, User, SubscriptionActivation,
-    PLAN_MONTHLY, PLAN_ANNUAL, PLAN_INSTITUTION, PLAN_DETAILS
+    PLAN_MONTHLY, PLAN_ANNUAL, PLAN_DETAILS
 )
 from extensions import db
 from mail import send_email
@@ -19,7 +19,7 @@ def create_order():
     """Create a pending manual-UPI subscription order."""
     data = request.get_json(silent=True) or {}
     plan_type = data.get('plan_type', '')
-    if plan_type not in (PLAN_MONTHLY, PLAN_ANNUAL, PLAN_INSTITUTION):
+    if plan_type not in (PLAN_MONTHLY, PLAN_ANNUAL):
         return jsonify({'error': 'Invalid plan type'}), 400
 
     upi_id = current_app.config.get('UPI_ID', '')

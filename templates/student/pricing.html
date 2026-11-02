@@ -25,7 +25,7 @@
         </div>
         <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.35rem;">
           {% if current_user.is_pro %}
-            Unlimited PDF uploads and full access to all AI features.
+            Unlimited study document uploads and access to all available AI features.
           {% else %}
             Uploads used: <strong>{{ current_user.free_uploads_used }}</strong> of <strong>{{ FREE_UPLOAD_LIMIT }}</strong> free PDFs
             ({{ current_user.uploads_remaining }} remaining).
@@ -67,13 +67,13 @@
 
         <ul style="list-style: none; padding: 0; margin: 1.5rem 0; flex: 1;">
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited PDF uploads</strong>
+            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited study document uploads</strong>
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> High-accuracy OpenAI exam notes
+            <span style="color: #10B981; font-weight: 700;">✓</span> AI-generated study notes
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> Custom practice quiz generator
+            <span style="color: #10B981; font-weight: 700;">✓</span> AI-generated practice quizzes
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
             <span style="color: #10B981; font-weight: 700;">✓</span> Interactive flashcard study decks
@@ -109,13 +109,13 @@
             <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Everything in Monthly Pro</strong>
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited PDF uploads for 365 days</strong>
+            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited study document uploads for 365 days</strong>
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> Priority generation speed
+            <span style="color: #10B981; font-weight: 700;">✓</span> Study notes, quizzes, flashcards, and chat
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> Exclusive access to upcoming features
+            <span style="color: #10B981; font-weight: 700;">✓</span> Renew manually; no automatic billing
           </li>
         </ul>
 
@@ -125,39 +125,24 @@
       </div>
     </div>
 
-    <!-- College / Institute Card -->
+    <!-- Institutional enquiries -->
     <div class="card card-hover" style="position: relative; border: 1px solid var(--border); display: flex; flex-direction: column;">
       <div style="position: absolute; top: 12px; right: 14px; background: rgba(59, 130, 246, 0.15); border: 1px solid #3B82F6; color: #60A5FA; font-size: 0.7rem; font-weight: 800; padding: 0.2rem 0.55rem; border-radius: 6px;">
         INSTITUTE
       </div>
       <div class="card-body" style="padding: 2rem 1.75rem; display: flex; flex-direction: column; height: 100%;">
-        <div style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800;">College / Institute</div>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">For coaching centres, colleges & departments</p>
+        <div style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 800;">For institutions</div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">Institution plans are arranged directly, not purchased as one student plan.</p>
         
-        <div style="margin: 1.25rem 0 0.5rem;">
-          <span style="font-family: 'Outfit', sans-serif; font-size: 2.5rem; font-weight: 900; color: var(--text-primary);">₹2,000</span>
-          <span style="font-size: 0.9rem; color: var(--text-muted);">/ month</span>
-        </div>
-        <div style="font-size: 0.75rem; color: #60A5FA; font-weight: 600;">Campus-wide student licenses</div>
-
         <ul style="list-style: none; padding: 0; margin: 1.5rem 0; flex: 1;">
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited students enrolled</strong>
-          </li>
-          <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> Unlimited uploads across all students
-          </li>
-          <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> Department performance dashboard
-          </li>
-          <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> Shared question bank & custom material
+            <span style="color: #10B981; font-weight: 700;">✓</span> Contact us to discuss availability and requirements
           </li>
         </ul>
 
-        <button class="btn btn-outline" onclick="initiatePayment('institution')" id="btn-institution" style="width: 100%; justify-content: center; font-weight: 700; padding: 0.8rem; border-color: rgba(59, 130, 246, 0.5); color: #93C5FD;">
-          {% if current_user.subscription_plan == 'institution' %}Current Plan{% else %}Enroll Campus (₹2,000){% endif %}
-        </button>
+        <a class="btn btn-outline" href="mailto:{{ contact_email|e }}?subject=SmartStudy.ai%20institution%20enquiry" style="width: 100%; justify-content: center; font-weight: 700; padding: 0.8rem; border-color: rgba(59, 130, 246, 0.5); color: #93C5FD; text-decoration: none;">
+          Contact us
+        </a>
       </div>
     </div>
 

@@ -62,6 +62,32 @@ def test_public_homepage_and_static_assets_load():
     assert logo.mimetype == "image/png"
 
 
+def test_public_pricing_page_explains_manual_payment_and_limits():
+    response = app.test_client().get("/pricing")
+
+    assert response.status_code == 200
+    assert b"Pricing Plans | SmartStudy.ai" in response.data
+    assert b"Up to 3 study document uploads" in response.data
+    assert b"Pro removes the upload cap" in response.data
+    assert b"12-digit UTR" in response.data
+    assert b"admin confirms the payment" in response.data
+    assert b"/payment/pricing" not in response.data
+
+
+def test_institution_plan_is_not_available_as_single_user_checkout():
+    client, csrf_token = student("institutioncheckout@t.co", "institutioncheckout")
+
+    response = js(
+        client,
+        "/payment/create-order",
+        {"plan_type": "institution"},
+        csrf_token
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Invalid plan type"
+
+
 def test_upi_payment_needs_admin_approval():
     c, t = student("pay1@t.co")
     oid = js(c, "/payment/create-order", {"plan_type": "monthly"}, t).get_json()["order_id"]

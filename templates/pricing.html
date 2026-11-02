@@ -3,8 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Affordable plans for students and institutions. Upgrade to SmartStudy.ai Pro for unlimited PDF uploads, AI notes, quizzes, and flashcards." />
+  <meta name="description" content="Compare SmartStudy.ai Free and Pro plans. Pro removes the study document upload limit; pay by UPI with admin approval." />
   <title>Pricing Plans | SmartStudy.ai</title>
+  <link rel="canonical" href="{{ site_url }}{{ url_for('main.pricing') }}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SmartStudy.ai" />
+  <meta property="og:title" content="Pricing Plans | SmartStudy.ai" />
+  <meta property="og:description" content="Compare free and Pro study plans. Pay by UPI and wait for admin verification before your plan is activated." />
+  <meta property="og:url" content="{{ site_url }}{{ url_for('main.pricing') }}" />
   <link rel="icon" href="{{ url_for('static', filename='images/favicon.png') }}" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -110,6 +116,28 @@
       margin: 0 auto 5rem;
       padding: 0 1.5rem;
     }
+    .pricing-steps {
+      max-width: 1000px;
+      margin: 0 auto 4rem;
+      padding: 0 1.5rem;
+    }
+    .pricing-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1rem;
+    }
+    .pricing-step {
+      padding: 1.25rem;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,.04);
+    }
+    .pricing-step p {
+      margin: .4rem 0 0;
+      color: rgba(255,255,255,.65);
+      font-size: .875rem;
+      line-height: 1.55;
+    }
   </style>
 </head>
 <body style="background: #0B0F17; color: #fff; min-height: 100vh;">
@@ -121,6 +149,7 @@
     </a>
     <div style="display: flex; align-items: center; gap: 1rem;">
       <a href="{{ url_for('main.index') }}" style="color: rgba(255,255,255,0.75); font-weight: 600; font-size: 0.9rem; text-decoration: none; padding: 0.5rem 0.85rem;">Home</a>
+      <a href="{{ url_for('main.pricing') }}" aria-current="page" style="color: #C4B5FD; font-weight: 700; font-size: 0.9rem; text-decoration: none; padding: 0.5rem 0.85rem;">Pricing</a>
       <a href="{{ url_for('auth.login') }}" style="color: rgba(255,255,255,0.75); font-weight: 600; font-size: 0.9rem; text-decoration: none; padding: 0.5rem 0.85rem;">Sign In</a>
       <a href="{{ url_for('auth.register') }}" class="hero-btn-primary" style="padding: 0.55rem 1.2rem; font-size: 0.9rem; text-decoration: none;">Get Started Free</a>
     </div>
@@ -133,7 +162,7 @@
       Invest in Smarter Studying,<br /><span class="gradient-text">At Student-Friendly Rates</span>
     </h1>
     <p style="color: rgba(255, 255, 255, 0.65); font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
-      Start free with up to 3 PDF study uploads. Upgrade anytime for unlimited AI notes, test quizzes, and instant flashcards.
+      Start free with up to 3 study document uploads. Pro removes the upload cap; AI tools are available on both plans.
     </p>
   </section>
 
@@ -144,16 +173,15 @@
       <div style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800;">Free Student</div>
       <p style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-top: 0.25rem;">Ideal for trying out the AI study partner</p>
       <div class="price-value">₹0</div>
-      <div class="price-period">Free forever · No card required</div>
+      <div class="price-period">Free forever · No payment required</div>
       <ul class="features-list">
-        <li><span class="check-icon">✓</span> <strong>Up to 3 PDF uploads</strong> total</li>
-        <li><span class="check-icon">✓</span> AI study notes generator</li>
-        <li><span class="check-icon">✓</span> AI quiz creator (up to 5 questions)</li>
-        <li><span class="check-icon">✓</span> Interactive flashcards</li>
-        <li><span class="check-icon">✓</span> Study planner & progress tracker</li>
+        <li><span class="check-icon">✓</span> <strong>Up to 3 study document uploads</strong></li>
+        <li><span class="check-icon">✓</span> AI-generated notes and quizzes</li>
+        <li><span class="check-icon">✓</span> Interactive flashcards and document chat</li>
+        <li><span class="check-icon">✓</span> Study planner and progress tracking</li>
       </ul>
-      <a href="{{ url_for('auth.register') }}" class="btn btn-outline" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; border-color: rgba(255,255,255,0.25); color: #fff; font-weight: 600; text-decoration: none; border-radius: 12px;">
-        Get Started Free
+      <a href="{{ url_for('student.dashboard') if current_user.is_authenticated else url_for('auth.register') }}" class="btn btn-outline" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; border-color: rgba(255,255,255,0.25); color: #fff; font-weight: 600; text-decoration: none; border-radius: 12px;">
+        {{ 'Go to your dashboard' if current_user.is_authenticated else 'Get Started Free' }}
       </a>
     </div>
 
@@ -165,15 +193,14 @@
       <div class="price-value">₹49 <span style="font-size: 1.1rem; font-weight: 500; color: rgba(255,255,255,0.7);">/ month</span></div>
       <div class="price-period">Less than ₹2 per day</div>
       <ul class="features-list">
-        <li><span class="check-icon">✓</span> <strong>Unlimited PDF uploads</strong></li>
-        <li><span class="check-icon">✓</span> High-accuracy OpenAI GPT summaries</li>
-        <li><span class="check-icon">✓</span> Unlimited quizzes (Easy / Medium / Hard)</li>
-        <li><span class="check-icon">✓</span> Unlimited AI flashcard decks</li>
-        <li><span class="check-icon">✓</span> Document Q&A AI tutor chat</li>
-        <li><span class="check-icon">✓</span> Priority processing speed</li>
+        <li><span class="check-icon">✓</span> <strong>Unlimited study document uploads</strong></li>
+        <li><span class="check-icon">✓</span> AI-generated notes and quizzes</li>
+        <li><span class="check-icon">✓</span> Interactive flashcards and document chat</li>
+        <li><span class="check-icon">✓</span> Study planner and progress tracking</li>
+        <li><span class="check-icon">✓</span> Renew manually; no automatic billing</li>
       </ul>
-      <a href="{{ url_for('auth.register') }}" class="btn btn-primary" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; font-weight: 700; text-decoration: none; border-radius: 12px; background: linear-gradient(135deg, #7C3AED, #9333EA);">
-        Start Pro for ₹49
+      <a href="{{ url_for('payment.pricing') if current_user.is_authenticated else url_for('auth.register') }}" class="btn btn-primary" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; font-weight: 700; text-decoration: none; border-radius: 12px; background: linear-gradient(135deg, #7C3AED, #9333EA);">
+        {{ 'Choose Monthly Pro' if current_user.is_authenticated else 'Create account to choose Pro' }}
       </a>
     </div>
 
@@ -185,44 +212,51 @@
       <div class="price-value">₹499 <span style="font-size: 1.1rem; font-weight: 500; color: rgba(255,255,255,0.7);">/ year</span></div>
       <div class="price-period">Billed annually · Full year access</div>
       <ul class="features-list">
-        <li><span class="check-icon">✓</span> <strong>Everything in Monthly Pro</strong></li>
-        <li><span class="check-icon">✓</span> <strong>Unlimited PDF uploads all year</strong></li>
-        <li><span class="check-icon">✓</span> Full access to all new AI tools</li>
-        <li><span class="check-icon">✓</span> Priority customer support</li>
-        <li><span class="check-icon">✓</span> Best price for students</li>
+        <li><span class="check-icon">✓</span> <strong>Unlimited study document uploads</strong></li>
+        <li><span class="check-icon">✓</span> AI-generated notes and quizzes</li>
+        <li><span class="check-icon">✓</span> Interactive flashcards and document chat</li>
+        <li><span class="check-icon">✓</span> Study planner and progress tracking</li>
+        <li><span class="check-icon">✓</span> Renew manually; no automatic billing</li>
       </ul>
-      <a href="{{ url_for('auth.register') }}" class="btn btn-outline" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; border-color: rgba(255,255,255,0.25); color: #fff; font-weight: 600; text-decoration: none; border-radius: 12px;">
-        Subscribe for ₹499/yr
+      <a href="{{ url_for('payment.pricing') if current_user.is_authenticated else url_for('auth.register') }}" class="btn btn-outline" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; border-color: rgba(255,255,255,0.25); color: #fff; font-weight: 600; text-decoration: none; border-radius: 12px;">
+        {{ 'Choose Annual Pro' if current_user.is_authenticated else 'Create account to choose Pro' }}
       </a>
     </div>
 
-    <!-- College / Institute Plan -->
+    <!-- Institutional enquiries -->
     <div class="pricing-card">
       <div style="position: absolute; top: 12px; right: 14px; background: rgba(59, 130, 246, 0.2); border: 1px solid #3B82F6; color: #60A5FA; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;">CAMPUS</div>
-      <div style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800;">College / Institute</div>
-      <p style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-top: 0.25rem;">For coaching centres, schools & colleges</p>
-      <div class="price-value">₹2,000 <span style="font-size: 1.1rem; font-weight: 500; color: rgba(255,255,255,0.7);">/ month</span></div>
-      <div class="price-period">Institutional license · All students</div>
+      <div style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800;">For institutions</div>
+      <p style="font-size: 0.85rem; color: rgba(255,255,255,0.6); margin-top: 0.25rem;">Discuss a suitable setup for your school, college, or coaching centre.</p>
+      <div class="price-value" style="font-size: 2rem;">Let’s talk</div>
+      <div class="price-period">Institution plans are arranged directly</div>
       <ul class="features-list">
-        <li><span class="check-icon">✓</span> <strong>Unlimited students access</strong></li>
-        <li><span class="check-icon">✓</span> Unlimited PDF uploads for the campus</li>
-        <li><span class="check-icon">✓</span> Institute Admin & Analytics Dashboard</li>
-        <li><span class="check-icon">✓</span> Custom curriculum & subject categorization</li>
-        <li><span class="check-icon">✓</span> Dedicated account manager & onboarding</li>
+        <li><span class="check-icon">✓</span> Contact us to discuss requirements</li>
+        <li><span class="check-icon">✓</span> We’ll confirm availability and pricing</li>
       </ul>
-      <a href="{{ url_for('auth.register') }}" class="btn btn-outline" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; border-color: rgba(59, 130, 246, 0.5); color: #93C5FD; font-weight: 600; text-decoration: none; border-radius: 12px;">
-        Enroll Institute
+      <a href="mailto:{{ contact_email|e }}?subject=SmartStudy.ai%20institution%20enquiry" class="btn btn-outline" style="width: 100%; text-align: center; justify-content: center; padding: 0.85rem; border-color: rgba(59, 130, 246, 0.5); color: #93C5FD; font-weight: 600; text-decoration: none; border-radius: 12px;">
+        Contact us
       </a>
     </div>
   </div>
+
+  <section class="pricing-steps" aria-labelledby="payment-steps-title">
+    <h2 id="payment-steps-title" style="font-family: 'Outfit', sans-serif; text-align: center; font-size: 1.65rem; font-weight: 800; margin: 0 0 1.25rem;">How Pro activation works</h2>
+    <div class="pricing-steps-grid">
+      <div class="pricing-step"><strong>1. Create an account</strong><p>Register for free, then sign in and open Plans to select Monthly or Annual Pro.</p></div>
+      <div class="pricing-step"><strong>2. Pay by UPI</strong><p>Use the UPI details shown in checkout and enter the 12-digit UTR from your payment app.</p></div>
+      <div class="pricing-step"><strong>3. Wait for approval</strong><p>Your paid plan stays inactive until an admin confirms the payment. There is no automatic renewal.</p></div>
+    </div>
+    <p style="text-align: center; color: rgba(255,255,255,.6); font-size: .85rem; margin-top: 1rem;">Already have an account? <a href="{{ url_for('auth.login') }}" style="color: #C4B5FD;">Sign in</a> and choose Plans from your dashboard.</p>
+  </section>
 
   <!-- FAQ Section -->
   <section class="faq-section">
     <h2 style="font-family: 'Outfit', sans-serif; text-align: center; font-size: 1.85rem; font-weight: 800; margin-bottom: 2rem;">Frequently Asked Questions</h2>
     <div style="display: flex; flex-direction: column; gap: 1rem;">
       <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.25rem 1.5rem;">
-        <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">How does the 3 free PDF upload limit work?</h4>
-        <p style="font-size: 0.875rem; color: rgba(255,255,255,0.65); line-height: 1.6;">Every newly registered student can upload up to 3 study documents (PDF, TXT, DOCX) completely free of charge to experience full AI notes, quizzes, and flashcards. Once you reach 3 documents, simply upgrade to Pro for ₹49/month to upload unlimited PDFs.</p>
+        <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">How does the free upload limit work?</h4>
+        <p style="font-size: 0.875rem; color: rgba(255,255,255,0.65); line-height: 1.6;">A free account can upload up to 3 supported study documents. Monthly or Annual Pro removes that upload limit. AI study tools are available on both plans.</p>
       </div>
       <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.25rem 1.5rem;">
         <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">Which payment methods are accepted?</h4>
@@ -230,7 +264,7 @@
       </div>
       <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.25rem 1.5rem;">
         <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">How does the College / Institute plan work?</h4>
-        <p style="font-size: 0.875rem; color: rgba(255,255,255,0.65); line-height: 1.6;">At ₹2,000/month, any educational institution or tuition center can offer unlimited SmartStudy.ai accounts to their enrolled students with shared study materials and an administrative performance dashboard.</p>
+        <p style="font-size: 0.875rem; color: rgba(255,255,255,0.65); line-height: 1.6;">Institution-specific setup and pricing are not self-service yet. Contact us to discuss availability and requirements.</p>
       </div>
     </div>
   </section>
