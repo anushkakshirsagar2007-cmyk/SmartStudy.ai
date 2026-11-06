@@ -33,12 +33,6 @@
           {% endfor %}
         </div>
 
-        {% if not has_ai %}
-        <div style="padding:.75rem;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--radius-sm);margin-bottom:1rem;font-size:.8rem;color:#92400E">
-          ⚠ <strong>Fallback Mode:</strong> Configure <code>GEMINI_API_KEY</code> or <code>OPENAI_API_KEY</code> on the server for real AI generation.
-        </div>
-        {% endif %}
-
         <form method="POST" action="{{ url_for('student.delete_document', doc_id=doc.id) }}" style="display:inline">
           <button type="submit" class="btn btn-danger btn-sm w-full" data-confirm="Delete this document? All related AI-generated content will also be removed.">🗑 Delete Document</button>
         </form>
@@ -263,7 +257,7 @@ async function generateNotes(docId) {
   document.getElementById('notes-result').style.display = 'none';
   try {
     const data = await apiCall('/api/ai/generate-notes', 'POST', { document_id: docId });
-    showResult('notes-result', `✓ Notes created! ${data.is_fallback ? '(Fallback mode)' : ''}`, true);
+    showResult('notes-result', '✓ Notes created!', true);
     document.getElementById('notes-result').innerHTML += ` <a href="/student/notes" style="font-weight:700">View Notes →</a>`;
   } catch(e) {
     showResult('notes-result', '✕ ' + e.message, false);
@@ -294,7 +288,7 @@ async function generateQuiz(docId) {
     const data = await apiCall('/api/ai/generate-quiz', 'POST', {
       document_id: docId, num_questions: parseInt(num), difficulty
     });
-    showResult('quiz-result', `✓ Quiz created with ${num} questions! ${data.is_fallback ? '(Fallback)' : ''}`, true);
+    showResult('quiz-result', `✓ Quiz created with ${num} questions!`, true);
     document.getElementById('quiz-result').innerHTML += ` <a href="/student/quizzes/${data.quiz_id}/take" style="font-weight:700">Take Quiz →</a>`;
   } catch(e) {
     showResult('quiz-result', '✕ ' + e.message, false);

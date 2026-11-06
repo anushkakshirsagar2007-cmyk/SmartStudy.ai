@@ -51,13 +51,9 @@ def create_app():
     app.config['MAX_UPLOAD_FILE_SIZE'] = 3 * 1024 * 1024
     app.config['MAX_CONTENT_LENGTH'] = min(4 * 1024 * 1024, int(os.environ.get('MAX_CONTENT_LENGTH', 4 * 1024 * 1024)))
     app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'txt', 'docx', 'md', 'png', 'jpg', 'jpeg', 'webp'}
-    app.config['AI_PROVIDER'] = os.environ.get('AI_PROVIDER', 'openai').strip().lower()
-    app.config['GEMINI_API_KEY'] = os.environ.get('GEMINI_API_KEY', '')
-    app.config['GEMINI_MODEL'] = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
-    app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '')
-    app.config['OPENAI_MODEL'] = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
-    app.config['OPENAI_BASE_URL'] = os.environ.get('OPENAI_BASE_URL', '')
-    app.config['OPENAI_TIMEOUT'] = float(os.environ.get('OPENAI_TIMEOUT', '30'))
+    app.config['OPENROUTER_API_KEY'] = os.environ.get('OPENROUTER_API_KEY', '')
+    app.config['OPENROUTER_MODEL'] = os.environ.get('OPENROUTER_MODEL', 'openrouter/free')
+    app.config['OPENROUTER_TIMEOUT'] = float(os.environ.get('OPENROUTER_TIMEOUT', '30'))
     
     app.config['UPI_ID'] = os.environ.get('UPI_ID', '').strip()
     app.config['SMTP_HOST'] = os.environ.get('SMTP_HOST', '')
@@ -69,7 +65,7 @@ def create_app():
     app.config['BUSINESS_NAME'] = os.environ.get('BUSINESS_NAME', 'SmartStudy.ai')
     app.config['CONTACT_EMAIL'] = os.environ.get('CONTACT_EMAIL') or os.environ.get('SUPPORT_EMAIL') or 'smartstudyai26@gmail.com'
     app.config['REFUND_WINDOW'] = os.environ.get('REFUND_WINDOW', 'within 7 days of payment')
-    app.config['SCANNED_PDF_PAGE_LIMIT'] = min(5, max(1, int(os.environ.get('SCANNED_PDF_PAGE_LIMIT', '3'))))
+    app.config['SCANNED_PDF_PAGE_LIMIT'] = min(50, max(1, int(os.environ.get('SCANNED_PDF_PAGE_LIMIT', '20'))))
     
     # Initialize extensions
     db.init_app(app)

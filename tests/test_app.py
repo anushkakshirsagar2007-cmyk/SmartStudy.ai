@@ -2,7 +2,7 @@ import hashlib, io, os, re, tempfile
 from sqlalchemy import create_engine, inspect
 _tmp = tempfile.mkdtemp()
 os.environ.update(SECRET_KEY="test-secret", DATABASE_URL=f"sqlite:///{_tmp}/t.db", FLASK_DEBUG="False",
-                  OPENAI_API_KEY="", UPI_ID="student-test@upi", RAZORPAY_KEY_ID="ignored-key",
+                  OPENROUTER_API_KEY="", UPI_ID="student-test@upi", RAZORPAY_KEY_ID="ignored-key",
                   RAZORPAY_KEY_SECRET="ignored-secret", ADMIN_EMAIL="admin@t.co", ADMIN_PASSWORD="AdminPass@123")
 import pytest
 from extensions import db
@@ -183,7 +183,7 @@ def test_upload_file_size_limit_is_enforced(monkeypatch):
 
 def test_ai_without_key_is_clean_error():
     c, t = student("aitester@t.co"); r = js(c, "/api/ai/chat", {"message": "hi"}, t)
-    assert r.status_code == 503 and "API key" in r.get_json()["error"]
+    assert r.status_code == 503 and "OPENROUTER_API_KEY" in r.get_json()["error"]
 
 def test_login_is_throttled():
     c = app.test_client(); t = token(c, "/auth/login")
@@ -321,7 +321,7 @@ def test_ai_provider_errors_are_actionable():
     cases = [
         (ProviderError("Incorrect API key", 401), 401, "API key"),
         (ProviderError("Quota exceeded", 429), 429, "quota"),
-        (ProviderError("The model does not exist", 404), 400, "OPENAI_MODEL"),
+        (ProviderError("The model does not exist", 404), 400, "OPENROUTER_MODEL"),
         (APITimeoutError("Request timed out"), 504, "timed out"),
     ]
     with app.test_request_context("/"):
@@ -331,7 +331,7 @@ def test_ai_provider_errors_are_actionable():
             assert expected_text.lower() in response.get_json()["error"].lower()
 
 
-def test_gemini_provider_uses_compatible_endpoint(monkeypatch):
+def test_openrouter_provider_uses_configured_model(monkeypatch):
     from routes.api import require_ai_client
 
     client_options = {}
@@ -339,9 +339,8 @@ def test_gemini_provider_uses_compatible_endpoint(monkeypatch):
         def __init__(self, **kwargs):
             client_options.update(kwargs)
 
-    monkeypatch.setitem(app.config, "AI_PROVIDER", "gemini")
-    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setitem(app.config, "GEMINI_MODEL", "gemini-test-model")
+    monkeypatch.setitem(app.config, "OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setitem(app.config, "OPENROUTER_MODEL", "test/model")
     monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
 
     with app.test_request_context("/"):
@@ -349,17 +348,20 @@ def test_gemini_provider_uses_compatible_endpoint(monkeypatch):
 
     assert error is None
     assert isinstance(client, FakeOpenAI)
-    assert model == "gemini-test-model"
-    assert client_options["api_key"] == "test-gemini-key"
-    assert client_options["base_url"] == "https://generativelanguage.googleapis.com/v1beta/openai/"
+    assert model == "test/model"
+    assert client_options["api_key"] == "test-openrouter-key"
+    assert client_options["base_url"] == "https://openrouter.ai/api/v1"
+    assert client_options["default_headers"] == {
+        "HTTP-Referer": "https://smartstudy.ai",
+        "X-OpenRouter-Title": "SmartStudy.ai",
+    }
 
 
-def test_gemini_provider_reports_missing_key(monkeypatch):
+def test_openrouter_provider_reports_missing_key(monkeypatch):
     from routes.api import require_ai_client
 
-    monkeypatch.setitem(app.config, "AI_PROVIDER", "gemini")
-    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "")
-    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setitem(app.config, "OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
 
     with app.test_request_context("/"):
         client, model, error = require_ai_client()
@@ -367,37 +369,37 @@ def test_gemini_provider_reports_missing_key(monkeypatch):
 
     assert client is None and model is None
     assert status == 503
-    assert "GEMINI_API_KEY" in response.get_json()["error"]
+    assert "OPENROUTER_API_KEY" in response.get_json()["error"]
 
 
-def test_gemini_vision_uses_native_multimodal_api(monkeypatch):
+def test_openrouter_vision_uses_compatible_multimodal_api():
     from routes.api import generate_vision_response
+    from types import SimpleNamespace
 
     request_data = {}
-    class FakeResponse:
-        def raise_for_status(self):
-            pass
+    class FakeCompletions:
+        def create(self, **kwargs):
+            request_data.update(kwargs)
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="Analyzed image"))]
+            )
 
-        def json(self):
-            return {"candidates": [{"content": {"parts": [{"text": "Analyzed image"}]}}]}
-
-    def fake_post(url, **kwargs):
-        request_data.update(url=url, **kwargs)
-        return FakeResponse()
-
-    monkeypatch.setitem(app.config, "AI_PROVIDER", "gemini")
-    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setattr("httpx.post", fake_post)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
 
     with app.test_request_context("/"):
-        result = generate_vision_response(None, "gemini-test-model", "Analyze this", [("image/png", b"image-bytes")], 100)
+        result = generate_vision_response(
+            client, "test/vision-model", "Analyze this", [("image/png", b"image-bytes")], 100
+        )
 
     assert result == "Analyzed image"
-    assert request_data["url"].endswith("/models/gemini-test-model:generateContent")
-    assert request_data["headers"]["x-goog-api-key"] == "test-gemini-key"
-    image_part = request_data["json"]["contents"][0]["parts"][1]["inline_data"]
-    assert image_part["mime_type"] == "image/png"
-    assert image_part["data"] == "aW1hZ2UtYnl0ZXM="
+    assert request_data["model"] == "test/vision-model"
+    assert request_data["messages"][0]["content"] == [
+        {"type": "text", "text": "Analyze this"},
+        {
+            "type": "image_url",
+            "image_url": {"url": "data:image/png;base64,aW1hZ2UtYnl0ZXM="},
+        },
+    ]
 
 
 def test_legacy_user_schema_migrates_without_dropping_data(tmp_path):
@@ -456,8 +458,93 @@ def test_scanned_pdf_without_ai_key_shows_clear_message():
         content_type="multipart/form-data",
         follow_redirects=True
     )
-    assert b"transcription requires a configured AI API key" in response.data
+    assert b"OPENROUTER_API_KEY" in response.data
     with app.app_context():
         document = Document.query.filter_by(original_name="scan.pdf").one()
         assert not document.is_processed
-        assert document.content_text.startswith("[Scanned PDF detected")
+        assert document.page_count == 1
+
+
+def test_mixed_pdf_extracts_text_and_analyzes_sparse_pages(monkeypatch):
+    class FakePage:
+        def __init__(self, text, images=None):
+            self.text = text
+            self.images = images or []
+
+        def extract_text(self, extraction_mode):
+            assert extraction_mode == "layout"
+            return self.text
+
+    class FakeReader:
+        is_encrypted = False
+        pages = [
+            FakePage(
+                "This page has enough selectable text, but also contains an important chart.",
+                images=["chart.png"]
+            ),
+            FakePage(""),
+        ]
+
+    monkeypatch.setattr("pypdf.PdfReader", lambda _file: FakeReader())
+    monkeypatch.setattr(
+        "routes.student.transcribe_scanned_pdf",
+        lambda _path, _subject, _filename, page_numbers: (
+            "Page 2\nDiagram labels and an explanation of the diagram.", None
+        ) if page_numbers == [1, 2] else ("", "Unexpected page list.")
+    )
+    client, csrf_token = student("mixedpdf@t.co")
+    response = client.post(
+        "/student/workspace/upload",
+        data={
+            "file": (io.BytesIO(b"fake pdf"), "mixed.pdf"),
+            "subject": "Biology",
+            "csrf_token": csrf_token
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True
+    )
+    assert response.status_code == 200
+    with app.app_context():
+        document = Document.query.filter_by(original_name="mixed.pdf").one()
+        assert document.is_processed
+        assert document.page_count == 2
+        assert "selectable text" in document.content_text
+        assert "Diagram labels" in document.content_text
+
+
+def test_long_document_chunks_cover_all_source_content():
+    from routes.api import split_text_into_chunks
+
+    source = "first page\n" + ("body paragraph.\n" * 800) + "LAST_PAGE_SENTINEL"
+    chunks = split_text_into_chunks(source, max_chars=500)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 500 for chunk in chunks)
+    assert "".join(chunks) == source
+    assert "LAST_PAGE_SENTINEL" in chunks[-1]
+
+
+def test_summary_generation_sends_every_chunk_to_provider():
+    from types import SimpleNamespace
+    from routes.api import generate_document_material
+
+    submitted_sources = []
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            submitted_sources.append(kwargs["messages"][-1]["content"])
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="Section summary"))]
+            )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions()))
+    source = "FIRST_PAGE_SENTINEL\n" + ("biology content. " * 900) + "\nLAST_PAGE_SENTINEL"
+
+    result = generate_document_material(
+        client, "test-model", "biology.pdf", "Biology", source, "summary"
+    )
+
+    assert result == "Section summary"
+    assert any("FIRST_PAGE_SENTINEL" in item for item in submitted_sources)
+    assert any("LAST_PAGE_SENTINEL" in item for item in submitted_sources)
+    assert len(submitted_sources) > 2

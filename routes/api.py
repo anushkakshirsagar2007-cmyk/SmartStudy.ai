@@ -10,39 +10,29 @@ api_bp = Blueprint('api', __name__)
 
 
 def get_ai_client():
-    """Build the configured provider through the OpenAI-compatible client API."""
+    """Build an OpenRouter client using its OpenAI-compatible API."""
     import os
     from dotenv import load_dotenv
+
     load_dotenv(override=False)
-    provider = (current_app.config.get('AI_PROVIDER') or os.environ.get('AI_PROVIDER', 'openai')).strip().lower()
-    if provider == 'gemini':
-        api_key = (current_app.config.get('GEMINI_API_KEY') or os.environ.get('GEMINI_API_KEY', '')).strip()
-        model = (current_app.config.get('GEMINI_MODEL') or os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')).strip()
-        base_url = 'https://generativelanguage.googleapis.com/v1beta/openai/'
-    elif provider in ('openai', 'openrouter'):
-        api_key = (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).strip()
-        default_model = 'openai/gpt-4o-mini' if provider == 'openrouter' or api_key.startswith('sk-or-') else 'gpt-4o-mini'
-        model = (current_app.config.get('OPENAI_MODEL') or os.environ.get('OPENAI_MODEL', default_model)).strip()
-        base_url = current_app.config.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL')
-        if not base_url and (provider == 'openrouter' or api_key.startswith('sk-or-')):
-            base_url = 'https://openrouter.ai/api/v1'
-    else:
-        raise ValueError('AI_PROVIDER must be openai, openrouter, or gemini.')
+
+    api_key = (
+        current_app.config.get('OPENROUTER_API_KEY')
+        or os.environ.get('OPENROUTER_API_KEY', '')
+    ).strip()
     if not api_key:
         return None
+
     from openai import OpenAI
-    options = {
-        'api_key': api_key,
-        'timeout': current_app.config.get('OPENAI_TIMEOUT', 30)
-    }
-    if base_url:
-        options['base_url'] = base_url
-    if provider == 'openrouter':
-        options['default_headers'] = {
+    return OpenAI(
+        api_key=api_key,
+        base_url='https://openrouter.ai/api/v1',
+        timeout=current_app.config.get('OPENROUTER_TIMEOUT', 30),
+        default_headers={
             'HTTP-Referer': 'https://smartstudy.ai',
-            'X-Title': 'SmartStudy.ai'
+            'X-OpenRouter-Title': 'SmartStudy.ai'
         }
-    return OpenAI(**options)
+    )
 
 
 def ai_error_response(exc, operation='AI request'):
@@ -51,15 +41,12 @@ def ai_error_response(exc, operation='AI request'):
     lowered = message.lower()
     status = getattr(exc, 'status_code', None)
     code = str(getattr(exc, 'code', '') or '').lower()
-    provider = current_app.config.get('AI_PROVIDER', 'openai')
-    key_setting = 'GEMINI_API_KEY' if provider == 'gemini' else 'OPENAI_API_KEY'
-    model_setting = 'GEMINI_MODEL' if provider == 'gemini' else 'OPENAI_MODEL'
     if status == 401 or any(term in lowered for term in ('invalid api key', 'incorrect api key', 'authentication_error')):
-        return jsonify({'error': f'The AI provider rejected the API key. Check {key_setting} and try again.'}), 401
+        return jsonify({'error': 'OpenRouter rejected the API key. Check OPENROUTER_API_KEY and try again.'}), 401
     if status == 429 or 'rate_limit' in code or 'quota' in lowered or 'rate limit' in lowered:
-        return jsonify({'error': 'The AI provider rate limit or quota was reached. Check your account quota or try again later.'}), 429
+        return jsonify({'error': 'OpenRouter rate limit or quota reached. Check your account quota or try again later.'}), 429
     if status == 404 or 'model_not_found' in code or 'model not found' in lowered or 'does not exist' in lowered:
-        return jsonify({'error': f'The configured AI model was not found. Check {model_setting} for this provider.'}), 400
+        return jsonify({'error': 'The model is unavailable on OpenRouter. Check OPENROUTER_MODEL and try again.'}), 400
     if 'timeout' in exc.__class__.__name__.lower() or 'timeout' in lowered or 'timed out' in lowered:
         return jsonify({'error': 'The AI provider timed out. Please try again.'}), 504
     current_app.logger.warning('%s failed: %s', operation, message)
@@ -67,79 +54,24 @@ def ai_error_response(exc, operation='AI request'):
 
 
 def require_ai_client():
-    """Return the configured AI client, model, or a Flask error response."""
-    try:
-        client = get_ai_client()
-    except ValueError as exc:
-        return None, None, (jsonify({'error': str(exc)}), 503)
+    """Return the OpenRouter client, model, or a Flask error response."""
+    client = get_ai_client()
     if not client:
         return None, None, (jsonify({
-            'error': 'AI features require a provider API key. Set GEMINI_API_KEY for Gemini or OPENAI_API_KEY for OpenAI.'
+            'error': 'AI is not configured. Add OPENROUTER_API_KEY in the server environment and redeploy.'
         }), 503)
 
     import os
-    provider = current_app.config.get('AI_PROVIDER', 'openai')
-    if provider == 'gemini':
-        model = (current_app.config.get('GEMINI_MODEL') or os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')).strip()
-    else:
-        api_key = (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).strip()
-        default_model = 'openai/gpt-4o-mini' if provider == 'openrouter' or api_key.startswith('sk-or-') else 'gpt-4o-mini'
-        model = (current_app.config.get('OPENAI_MODEL') or os.environ.get('OPENAI_MODEL', default_model)).strip()
-    if provider in ('openrouter', 'openai') and (
-        provider == 'openrouter'
-        or (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).startswith('sk-or-')
-    ):
-        if model in ('gpt-3.5-turbo', 'openai/gpt-3.5-turbo'):
-            model = 'openai/gpt-4o-mini'
-        elif '/' not in model:
-            model = f'openai/{model}'
-    elif provider == 'openai' and model.startswith('openai/') and not (
-        current_app.config.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL')
-    ):
-        model = model.split('/', 1)[1]  # plain OpenAI keys use bare model names
-    
+    model = (
+        current_app.config.get('OPENROUTER_MODEL')
+        or os.environ.get('OPENROUTER_MODEL', 'openrouter/free')
+    ).strip() or 'openrouter/free'
     return client, model, None
 
 
-def has_ai_provider():
-    import os
-    provider = current_app.config.get('AI_PROVIDER', 'openai')
-    key_name = 'GEMINI_API_KEY' if provider == 'gemini' else 'OPENAI_API_KEY'
-    return bool(current_app.config.get(key_name) or os.environ.get(key_name))
-
-
 def generate_vision_response(client, model, prompt, images, max_tokens):
-    """Run multimodal analysis through the configured AI provider."""
+    """Run multimodal analysis through OpenRouter."""
     import base64
-    import os
-    if current_app.config.get('AI_PROVIDER') == 'gemini':
-        import httpx
-        from urllib.parse import quote
-
-        api_key = (current_app.config.get('GEMINI_API_KEY') or os.environ.get('GEMINI_API_KEY', '')).strip()
-        parts = [{'text': prompt}]
-        parts.extend(
-            {'inline_data': {'mime_type': mime_type, 'data': base64.b64encode(data).decode('ascii')}}
-            for mime_type, data in images
-        )
-        response = httpx.post(
-            f'https://generativelanguage.googleapis.com/v1beta/models/{quote(model, safe="-._")}:generateContent',
-            headers={'x-goog-api-key': api_key},
-            json={
-                'contents': [{'role': 'user', 'parts': parts}],
-                'generationConfig': {'maxOutputTokens': max_tokens}
-            },
-            timeout=current_app.config.get('OPENAI_TIMEOUT', 30)
-        )
-        response.raise_for_status()
-        candidates = response.json().get('candidates', [])
-        if not candidates:
-            raise RuntimeError('Gemini returned no vision response.')
-        text = ''.join(part.get('text', '') for part in candidates[0].get('content', {}).get('parts', []))
-        if not text.strip():
-            raise RuntimeError('Gemini returned an empty vision response.')
-        return text
-
     content = [{'type': 'text', 'text': prompt}]
     content.extend({
         'type': 'image_url',
@@ -158,6 +90,100 @@ def truncate_text(text, max_chars=8000):
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + '\n...[content truncated for processing]'
+
+
+def split_text_into_chunks(text, max_chars=10000):
+    """Split text without dropping content, preferring paragraph boundaries."""
+    chunks = []
+    current = ''
+    for paragraph in text.splitlines(keepends=True):
+        while len(paragraph) > max_chars:
+            if current:
+                chunks.append(current)
+                current = ''
+            chunks.append(paragraph[:max_chars])
+            paragraph = paragraph[max_chars:]
+        if current and len(current) + len(paragraph) > max_chars:
+            chunks.append(current)
+            current = ''
+        current += paragraph
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def generate_document_material(client, model, title, subject, content, material_type):
+    """Generate notes or a summary from every source-text chunk, then consolidate."""
+    chunks = split_text_into_chunks(content)
+    if not chunks:
+        raise ValueError('The document has no extractable text to process.')
+
+    is_notes = material_type == 'notes'
+    section_instruction = (
+        'Create detailed, source-faithful study notes for this section. Preserve definitions, '
+        'important facts, equations, examples, and page references.'
+        if is_notes else
+        'Create a detailed, source-faithful summary of this section. Preserve key concepts, '
+        'definitions, facts, equations, examples, and page references.'
+    )
+    final_instruction = (
+        'Create comprehensive, organized study notes with Markdown headings, definitions, '
+        'important facts, equations, examples, and key takeaways.'
+        if is_notes else
+        'Create a clear student-friendly summary with Overview, Key Topics, Important Details '
+        '(including definitions, formulas, and examples), and Main Takeaways.'
+    )
+    grounding = (
+        'Use only facts present in the supplied document text. Do not invent missing information. '
+        'If the source is unclear, say so.'
+    )
+
+    def request_material(instruction, source, max_tokens):
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {'role': 'system', 'content': f'{instruction}\n{grounding}'},
+                {
+                    'role': 'user',
+                    'content': f'Subject: {subject}\nDocument: {title}\n\n{source}'
+                }
+            ],
+            max_tokens=max_tokens,
+            temperature=0.2
+        )
+        result = response.choices[0].message.content
+        if not result or not result.strip():
+            raise RuntimeError('The AI model returned an empty document analysis.')
+        return result.strip()
+
+    if len(chunks) == 1:
+        return request_material(final_instruction, chunks[0], 2500)
+
+    summaries = [
+        request_material(
+            f'{section_instruction} This is section {index} of {len(chunks)}.',
+            chunk,
+            1400
+        )
+        for index, chunk in enumerate(chunks, start=1)
+    ]
+
+    while len(summaries) > 4:
+        summaries = [
+            request_material(
+                'Consolidate these section analyses without losing source-specific facts, '
+                'definitions, equations, examples, or page references. Remove only repetition.',
+                '\n\n'.join(summaries[index:index + 4]),
+                1800
+            )
+            for index in range(0, len(summaries), 4)
+        ]
+
+    return request_material(
+        final_instruction,
+        '\n\n'.join(summaries),
+        3000
+    )
 
 
 def parse_json_response(content):
@@ -207,6 +233,9 @@ def generate_notes():
     doc = Document.query.filter_by(id=doc_id, user_id=current_user.id).first()
     if not doc:
         return jsonify({'error': 'Document not found'}), 404
+
+    if not doc.is_processed:
+        return jsonify({'error': 'Document processing is incomplete. Re-upload it or resolve the extraction warning before generating study material.'}), 400
     
     if not doc.content_text or len(doc.content_text.strip()) < 50:
         return jsonify({'error': 'Document has insufficient extractable text. Please upload a document with readable content.'}), 400
@@ -216,30 +245,9 @@ def generate_notes():
         return error
     
     try:
-        text = truncate_text(doc.content_text)
-        
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {'role': 'system', 'content': '''You are an expert academic study note creator for students. Create thorough, well-structured, exam-focused study notes from the provided document content. 
-
-Your notes MUST:
-- Use markdown formatting with clear headers (##, ###), bullet points, bold key terms, and emphasis
-- Start with a brief overview/summary paragraph
-- Cover ALL key concepts, definitions, theories, formulas, and important details from the document
-- Include mnemonics or memory aids where helpful
-- Add "Key Takeaways" section at the end
-- Be accurate — only include information that is in the document
-- Organize logically by topic/chapter flow
-
-Do NOT make up information that isn't in the source document.'''},
-                {'role': 'user', 'content': f'Create comprehensive study notes from this document. Subject area: {doc.subject}.\n\nDocument Title: {doc.original_name}\n\nDocument Content:\n{text}'}
-            ],
-            max_tokens=2500,
-            temperature=0.3
+        notes_content = generate_document_material(
+            client, model, doc.original_name, doc.subject, doc.content_text, 'notes'
         )
-        
-        notes_content = response.choices[0].message.content
         
         note = Note(
             user_id=current_user.id,
@@ -273,6 +281,9 @@ def generate_summary():
     doc = Document.query.filter_by(id=doc_id, user_id=current_user.id).first()
     if not doc:
         return jsonify({'error': 'Document not found'}), 404
+
+    if not doc.is_processed:
+        return jsonify({'error': 'Document processing is incomplete. Re-upload it or resolve the extraction warning before generating a summary.'}), 400
     
     if not doc.content_text or len(doc.content_text.strip()) < 50:
         return jsonify({'error': 'Document has insufficient text for summarization.'}), 400
@@ -282,25 +293,9 @@ def generate_summary():
         return error
     
     try:
-        text = truncate_text(doc.content_text, 6000)
-        
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {'role': 'system', 'content': '''Create a concise, accurate summary of the document for a student. Structure it as:
-1. **Overview** — What the document is about (2-3 sentences)
-2. **Key Topics Covered** — Bullet points of main topics
-3. **Important Details** — Critical facts, formulas, or concepts
-4. **Conclusion/Takeaway** — Main lessons or conclusions
-
-Be precise and only summarize what is actually in the document.'''},
-                {'role': 'user', 'content': f'Summarize this {doc.subject} document:\n\nTitle: {doc.original_name}\n\n{text}'}
-            ],
-            max_tokens=800,
-            temperature=0.3
+        summary = generate_document_material(
+            client, model, doc.original_name, doc.subject, doc.content_text, 'summary'
         )
-        
-        summary = response.choices[0].message.content
         doc.summary = summary
         db.session.commit()
         

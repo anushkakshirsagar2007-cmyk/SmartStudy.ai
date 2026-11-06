@@ -3,16 +3,6 @@
 {% block page_title %}AI Study Tutor{% endblock %}
 {% block page_subtitle %}Ask questions, discuss complex topics, and understand your study materials 24/7{% endblock %}
 
-{% block topbar_actions %}
-<div style="display:flex; align-items:center; gap:0.75rem;">
-  {% if has_ai %}
-  <span class="badge badge-success" style="padding:0.4rem 0.8rem; font-size:0.8rem;">🟢 AI Powered</span>
-  {% else %}
-  <span class="badge badge-warning" style="padding:0.4rem 0.8rem; font-size:0.8rem;" title="Set GEMINI_API_KEY or OPENAI_API_KEY on the server for live AI">🟡 Demo Mode</span>
-  {% endif %}
-</div>
-{% endblock %}
-
 {% block extra_css %}
 <style>
 .chat-container {

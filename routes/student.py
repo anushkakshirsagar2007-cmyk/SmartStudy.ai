@@ -17,57 +17,70 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def transcribe_scanned_pdf(file_path, subject, filename):
-    """OCR locally when available, then use the configured vision model on bounded pages."""
+def transcribe_scanned_pdf(file_path, subject, filename, page_numbers):
+    """Transcribe and describe sparse PDF pages with OpenRouter vision."""
     from routes.api import ai_error_response, generate_vision_response, require_ai_client
+
+    page_limit = current_app.config['SCANNED_PDF_PAGE_LIMIT']
+    if len(page_numbers) > page_limit:
+        return '', (
+            f'This PDF has {len(page_numbers)} scanned or image-heavy pages; '
+            f'the current limit is {page_limit}. Increase SCANNED_PDF_PAGE_LIMIT '
+            'to process the complete document.'
+        )
+
+    client, model, error = require_ai_client()
+    if error:
+        return '', 'Scanned PDF pages require OPENROUTER_API_KEY for transcription and visual analysis.'
 
     try:
         import pypdfium2
         pdf = pypdfium2.PdfDocument(file_path)
-        try:
-            page_limit = min(len(pdf), current_app.config['SCANNED_PDF_PAGE_LIMIT'])
-            images = [pdf[index].render(scale=1.5).to_pil() for index in range(page_limit)]
-        finally:
-            pdf.close()
     except ImportError:
-        return '[Scanned PDF detected, but PDF rendering is unavailable. Install pypdfium2 to process scanned PDFs.]'
+        return '', 'Cannot process scanned PDF pages because pypdfium2 is unavailable.'
     except Exception:
         current_app.logger.exception('Failed to render scanned PDF %s', filename)
-        return '[Scanned PDF detected, but its pages could not be rendered.]'
+        return '', 'The PDF renderer could not open this document.'
 
+    transcriptions = []
     try:
-        import pytesseract
-        ocr_text = '\n'.join(pytesseract.image_to_string(image) for image in images).strip()
-        if len(ocr_text) >= 50:
-            return ocr_text
-    except (ImportError, OSError):
-        pass
-    except Exception:
-        current_app.logger.info('Optional local OCR could not process %s', filename, exc_info=True)
+        for offset in range(0, len(page_numbers), 4):
+            batch_numbers = page_numbers[offset:offset + 4]
+            image_data = []
+            for page_number in batch_numbers:
+                image = pdf[page_number - 1].render(scale=1.8).to_pil()
+                try:
+                    image_buffer = io.BytesIO()
+                    image.save(image_buffer, format='JPEG', quality=90)
+                    image_data.append(('image/jpeg', image_buffer.getvalue()))
+                finally:
+                    image.close()
 
-    client, model, error = require_ai_client()
-    if error:
-        return '[Scanned PDF detected, but transcription requires a configured AI API key or working local pytesseract OCR.]'
-
-    image_data = []
-    for image in images:
-        image_buffer = io.BytesIO()
-        image.save(image_buffer, format='JPEG', quality=85)
-        image_data.append(('image/jpeg', image_buffer.getvalue()))
-    try:
-        transcription = generate_vision_response(
-            client,
-            model,
-            f'Transcribe all readable text, equations, and labels from these first {page_limit} pages. Preserve page order. Subject: {subject}.',
-            image_data,
-            max_tokens=3000
-        ).strip()
-        return transcription or '[Scanned PDF transcription returned no text.]'
+            prompt = (
+                f'Analyze these pages from a {subject} study document in the supplied order. '
+                'For each page, start with its exact page heading (for example, "Page 4"). '
+                'Transcribe visible text, equations, symbols, and table values as accurately as possible. '
+                'Also describe relevant diagrams, charts, and visual relationships for a student. '
+                'Mark anything illegible as [unclear]; do not guess or invent missing content.'
+            )
+            transcription = generate_vision_response(
+                client,
+                model,
+                prompt,
+                image_data,
+                max_tokens=min(1200 * len(image_data), 4800)
+            ).strip()
+            if not transcription:
+                return '', f'OpenRouter returned no transcription for PDF pages {batch_numbers[0]}-{batch_numbers[-1]}.'
+            transcriptions.append(transcription)
     except Exception as exc:
         result, status = ai_error_response(exc, 'Scanned PDF transcription')
-        error = result.get_json().get('error', 'Scanned PDF transcription failed.')
         current_app.logger.warning('Vision PDF transcription failed with status %s', status)
-        return f'[Scanned PDF transcription failed: {error}]'
+        return '', result.get_json().get('error', 'Scanned PDF transcription failed.')
+    finally:
+        pdf.close()
+
+    return '\n\n'.join(transcriptions), None
 
 
 @student_bp.app_context_processor
@@ -400,20 +413,57 @@ def upload_document():
     # Extract text content with improved handling
     content_text = ''
     page_count = 0
+    processing_error = None
     
     try:
         if ext == 'pdf':
             import pypdf
             with open(file_path, 'rb') as f:
                 reader = pypdf.PdfReader(f)
+                if reader.is_encrypted:
+                    raise ValueError('This PDF is password-protected. Remove its password and upload it again.')
                 page_count = len(reader.pages)
-                for page in reader.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        content_text += page_text + '\n'
-            content_text = content_text.strip()
-            if len(content_text) < 50:
-                content_text = transcribe_scanned_pdf(file_path, subject, file.filename)
+                page_texts = []
+                sparse_pages = []
+                for page_number, page in enumerate(reader.pages, start=1):
+                    try:
+                        page_text = (page.extract_text(extraction_mode='layout') or '').strip()
+                    except Exception:
+                        current_app.logger.info(
+                            'Text extraction failed for PDF page %s in %s',
+                            page_number, file.filename, exc_info=True
+                        )
+                        page_text = ''
+                    page_texts.append(page_text)
+                    try:
+                        has_embedded_images = bool(page.images)
+                    except Exception:
+                        current_app.logger.info(
+                            'Image detection failed for PDF page %s in %s',
+                            page_number, file.filename, exc_info=True
+                        )
+                        has_embedded_images = False
+                    if len(page_text) < 40 or has_embedded_images:
+                        sparse_pages.append(page_number)
+
+            visual_analysis = ''
+            if sparse_pages:
+                transcription, processing_error = transcribe_scanned_pdf(
+                    file_path, subject, file.filename, sparse_pages
+                )
+                if transcription:
+                    visual_analysis = '[Visual analysis of scanned or image-heavy pages]\n' + transcription
+            content_text = '\n\n'.join(
+                f'[Page {page_number}]\n{page_text}'
+                for page_number, page_text in enumerate(page_texts, start=1)
+                if page_text
+            )
+            if visual_analysis:
+                content_text = '\n\n'.join(
+                    part for part in (content_text, visual_analysis) if part
+                )
+            if not content_text.strip() and not processing_error:
+                processing_error = 'No readable text or visual content could be extracted from this PDF.'
         elif ext == 'txt' or ext == 'md':
             # Try multiple encodings
             for encoding in ['utf-8', 'latin-1', 'cp1252', 'ascii']:
@@ -459,7 +509,8 @@ def upload_document():
             else:
                 content_text = f"Image study document: {file.filename}\n[Uploaded image. Configure an AI provider API key to generate full vision breakdown.]"
     except Exception as e:
-        content_text = f'[Could not extract text: {str(e)}]'
+        current_app.logger.exception('Failed to extract uploaded document %s', file.filename)
+        processing_error = str(e) or 'Could not extract content from this document.'
     
     word_count = len(content_text.split()) if content_text else 0
     
@@ -469,9 +520,9 @@ def upload_document():
         stored_name=stored_name,
         file_type=ext,
         file_size=file_size,
-        content_text=content_text[:50000],  # Limit stored text
+        content_text=content_text,
         subject=subject,
-        is_processed=bool(content_text and not content_text.startswith('[')),
+        is_processed=bool(content_text and not processing_error),
         page_count=page_count,
         word_count=word_count
     )
@@ -485,8 +536,8 @@ def upload_document():
     db.session.add(session_log)
     db.session.commit()
     
-    if content_text.startswith('[Scanned PDF'):
-        flash(content_text[1:-1], 'warning')
+    if processing_error:
+        flash(processing_error, 'warning')
     else:
         flash(f'Document "{file.filename}" uploaded and processed successfully!', 'success')
     return redirect(url_for('student.document_view', doc_id=doc.id))
@@ -499,15 +550,12 @@ def document_view(doc_id):
     related_notes = Note.query.filter_by(user_id=current_user.id, source_document_id=doc_id).all()
     related_quizzes = Quiz.query.filter_by(user_id=current_user.id, source_document_id=doc_id).all()
     related_flashcards = FlashcardSet.query.filter_by(user_id=current_user.id, source_document_id=doc_id).all()
-    from routes.api import has_ai_provider
-    has_ai = has_ai_provider()
     
     return render_template('student/document_view.html', 
                            doc=doc,
                            related_notes=related_notes,
                            related_quizzes=related_quizzes,
-                           related_flashcards=related_flashcards,
-                           has_ai=has_ai)
+                           related_flashcards=related_flashcards)
 
 
 @student_bp.route('/workspace/file/<int:doc_id>')
@@ -750,13 +798,10 @@ def chat():
         ChatMessage.created_at.desc()
     ).limit(50).all()
     recent_messages = list(reversed(recent_messages))
-    from routes.api import has_ai_provider
-    has_ai = has_ai_provider()
     
     return render_template('student/chat.html', 
                            docs=docs, 
-                           messages=recent_messages,
-                           has_ai=has_ai)
+                           messages=recent_messages)
 
 
 # ─── Profile / Settings ────────────────────────────────────────────────────────

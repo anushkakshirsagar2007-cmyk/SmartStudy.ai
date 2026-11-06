@@ -8,7 +8,7 @@ A comprehensive, full-stack AI-driven educational web platform designed to help 
 
 ### 1. ⚡ AI Study Workspace
 - **Multi-Format Document Upload**: Support for PDF, TXT, DOCX, and Markdown files.
-- Scanned PDFs fall back to bounded-page image transcription using `pypdfium2` and the configured vision model; local OCR is also used when optional `pytesseract` and its Tesseract executable are installed.
+- PDFs are extracted page by page. Sparse/image-only pages in mixed or scanned PDFs are sent to OpenRouter vision in order, where visible text, equations, tables, and diagrams are analyzed. The page ceiling is configurable; incomplete processing is reported rather than silently treated as complete.
 - **AI Summary & Structured Notes**: Generates concise takeaways and revision notes automatically.
 - **AI Quiz Generation**: Generates multiple-choice questions with answers and detailed explanations.
 - **AI Flashcards**: Creates smart spaced-repetition decks ready for active recall study.
@@ -109,16 +109,16 @@ smartstudy/
 - Set `BUSINESS_NAME`, `CONTACT_EMAIL`, and `REFUND_WINDOW` to customize the business identity and refund-policy wording. Configure the `SMTP_*` settings and `MAIL_FROM` to deliver password-reset and payment-receipt emails. If `SMTP_HOST` is empty, messages are printed to the server console for development.
 
 ## 🤖 AI provider setup
-- Set `AI_PROVIDER=gemini` and `GEMINI_API_KEY` to use Google's Gemini API; the default model is `gemini-3.8-flash`. Generate a key in [Google AI Studio](https://aistudio.google.com/apikey).
-- Gemini currently offers free-tier usage for eligible models, subject to quotas and regional/model availability. Review Google's [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) and [terms](https://ai.google.dev/gemini-api/terms); free-tier content may be used to improve Google's products.
-- Alternatively set `AI_PROVIDER=openai` with `OPENAI_API_KEY`, or `AI_PROVIDER=openrouter` with an OpenRouter key. Never expose provider keys in client-side code or commit them.
+- Set `OPENROUTER_API_KEY` in the server environment. AI requests, including image analysis, use OpenRouter; the app does not switch to Gemini or OpenAI.
+- The default `OPENROUTER_MODEL=openrouter/free` uses OpenRouter's free-model router, which routes to free models supporting the request capabilities, including vision when available. Free model availability and rate limits can change. Set `OPENROUTER_MODEL` to another model listed in the [OpenRouter catalog](https://openrouter.ai/models) if needed; paid models may incur charges.
+- Never expose the API key in client-side code or commit it. For Vercel, add `OPENROUTER_API_KEY` under **Project → Settings → Environment Variables**, then redeploy. The app displays provider/configuration errors instead of returning demo or fabricated AI content.
 
 ## ✉️ Account email and database updates
 - Registration requires consent to the Terms and Privacy Policy and records its timestamp.
 - Email verification is disabled; account registration does not send verification emails. Password recovery and payment receipts can still send email when SMTP is configured.
 - Password recovery uses a generic response, a hashed single-use token, and a 30-minute expiry. Do not share reset links or console output.
 - Existing databases are updated without deleting data when you run `python init_db.py`; new tables are added and the nullable account metadata columns are added only when missing.
-- Scanned-PDF image processing is capped by `SCANNED_PDF_PAGE_LIMIT` (maximum five pages). `pytesseract` is optional and is not installed by requirements because it also needs a separately installed Tesseract executable.
+- Scanned/image-heavy PDF processing is capped by `SCANNED_PDF_PAGE_LIMIT` (default 20, maximum 50). Summaries and study notes are generated from the full extracted content in bounded chunks; large documents may require multiple provider requests and can hit OpenRouter rate limits.
 
 ## 🔒 Security notes
 CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, 3 MB per-file upload limit and 4 MB total request limit for serverless hosting, `SECRET_KEY` required, debug off by default. Never commit `.env`, `instance/` or `uploads/`.
@@ -152,7 +152,7 @@ The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres
 - **Backups:** `python backup.py` creates `backups/backup-<time>.zip` (database + uploads, last 14 kept). Schedule it daily.
 - **Search engines:** set `SITE_URL` in `.env`; `/robots.txt` and `/sitemap.xml` are generated. Submit the sitemap in Google Search Console.
 - **Legal pages** (`/terms`, `/privacy`, `/refund`) are plain templates: review and edit them for your situation before accepting real payments.
-- **Tests:** install `requirements.txt`, then run `pytest -q`. Install the browser once with `python -m playwright install chromium` to run the real-browser E2E test. The live OpenAI integration test is skipped unless `OPENAI_API_KEY` is set and may make billable provider calls.
+- **Tests:** install `requirements.txt`, then run `pytest -q`. Install the browser once with `python -m playwright install chromium` to run the real-browser E2E test. The live OpenRouter integration test is skipped unless `OPENROUTER_API_KEY` is set; it sends real requests using the configured model.
 
 ## ✅ Launch checklist
 Complete and verify these items before accepting real users or payments:

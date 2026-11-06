@@ -14,7 +14,7 @@ def running_app(tmp_path, monkeypatch):
     database_path = (tmp_path / 'e2e.sqlite').as_posix()
     monkeypatch.setenv('DATABASE_URL', f'sqlite:///{database_path}')
     monkeypatch.setenv('SECRET_KEY', 'playwright-e2e-test-key')
-    monkeypatch.setenv('OPENAI_API_KEY', '')
+    monkeypatch.setenv('OPENROUTER_API_KEY', '')
     monkeypatch.setenv('UPI_ID', 'e2e-test@upi')
 
     app = create_app()

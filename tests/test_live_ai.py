@@ -6,8 +6,8 @@ from models import Document, User
 
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get('OPENAI_API_KEY'),
-    reason='Set OPENAI_API_KEY to run live provider integration checks.'
+    not os.environ.get('OPENROUTER_API_KEY'),
+    reason='Set OPENROUTER_API_KEY to run live provider integration checks.'
 )
 
 
@@ -15,8 +15,8 @@ def test_live_ai_endpoints_return_expected_structures(tmp_path, monkeypatch):
     database_path = (tmp_path / 'live-ai.sqlite').as_posix()
     monkeypatch.setenv('DATABASE_URL', f'sqlite:///{database_path}')
     monkeypatch.setenv('SECRET_KEY', 'live-integration-test-key')
-    monkeypatch.setenv('OPENAI_API_KEY', os.environ['OPENAI_API_KEY'])
-    monkeypatch.setenv('OPENAI_MODEL', os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'))
+    monkeypatch.setenv('OPENROUTER_API_KEY', os.environ['OPENROUTER_API_KEY'])
+    monkeypatch.setenv('OPENROUTER_MODEL', os.environ.get('OPENROUTER_MODEL', 'openrouter/free'))
 
     app = create_app()
     app.config['TESTING'] = True
