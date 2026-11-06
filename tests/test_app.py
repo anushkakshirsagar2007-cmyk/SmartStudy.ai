@@ -331,6 +331,75 @@ def test_ai_provider_errors_are_actionable():
             assert expected_text.lower() in response.get_json()["error"].lower()
 
 
+def test_gemini_provider_uses_compatible_endpoint(monkeypatch):
+    from routes.api import require_ai_client
+
+    client_options = {}
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            client_options.update(kwargs)
+
+    monkeypatch.setitem(app.config, "AI_PROVIDER", "gemini")
+    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setitem(app.config, "GEMINI_MODEL", "gemini-test-model")
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+
+    with app.test_request_context("/"):
+        client, model, error = require_ai_client()
+
+    assert error is None
+    assert isinstance(client, FakeOpenAI)
+    assert model == "gemini-test-model"
+    assert client_options["api_key"] == "test-gemini-key"
+    assert client_options["base_url"] == "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def test_gemini_provider_reports_missing_key(monkeypatch):
+    from routes.api import require_ai_client
+
+    monkeypatch.setitem(app.config, "AI_PROVIDER", "gemini")
+    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+
+    with app.test_request_context("/"):
+        client, model, error = require_ai_client()
+        response, status = error
+
+    assert client is None and model is None
+    assert status == 503
+    assert "GEMINI_API_KEY" in response.get_json()["error"]
+
+
+def test_gemini_vision_uses_native_multimodal_api(monkeypatch):
+    from routes.api import generate_vision_response
+
+    request_data = {}
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": "Analyzed image"}]}}]}
+
+    def fake_post(url, **kwargs):
+        request_data.update(url=url, **kwargs)
+        return FakeResponse()
+
+    monkeypatch.setitem(app.config, "AI_PROVIDER", "gemini")
+    monkeypatch.setitem(app.config, "GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    with app.test_request_context("/"):
+        result = generate_vision_response(None, "gemini-test-model", "Analyze this", [("image/png", b"image-bytes")], 100)
+
+    assert result == "Analyzed image"
+    assert request_data["url"].endswith("/models/gemini-test-model:generateContent")
+    assert request_data["headers"]["x-goog-api-key"] == "test-gemini-key"
+    image_part = request_data["json"]["contents"][0]["parts"][1]["inline_data"]
+    assert image_part["mime_type"] == "image/png"
+    assert image_part["data"] == "aW1hZ2UtYnl0ZXM="
+
+
 def test_legacy_user_schema_migrates_without_dropping_data(tmp_path):
     from schema_migrations import migrate_legacy_columns
 
@@ -387,7 +456,7 @@ def test_scanned_pdf_without_ai_key_shows_clear_message():
         content_type="multipart/form-data",
         follow_redirects=True
     )
-    assert b"transcription requires OPENAI_API_KEY" in response.data
+    assert b"transcription requires a configured AI API key" in response.data
     with app.app_context():
         document = Document.query.filter_by(original_name="scan.pdf").one()
         assert not document.is_processed

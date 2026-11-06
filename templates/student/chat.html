@@ -5,10 +5,10 @@
 
 {% block topbar_actions %}
 <div style="display:flex; align-items:center; gap:0.75rem;">
-  {% if has_openai %}
-  <span class="badge badge-success" style="padding:0.4rem 0.8rem; font-size:0.8rem;">🟢 GPT Powered</span>
+  {% if has_ai %}
+  <span class="badge badge-success" style="padding:0.4rem 0.8rem; font-size:0.8rem;">🟢 AI Powered</span>
   {% else %}
-  <span class="badge badge-warning" style="padding:0.4rem 0.8rem; font-size:0.8rem;" title="Running in fallback mode. Add OPENAI_API_KEY to .env for live AI">🟡 Demo Mode</span>
+  <span class="badge badge-warning" style="padding:0.4rem 0.8rem; font-size:0.8rem;" title="Set GEMINI_API_KEY or OPENAI_API_KEY on the server for live AI">🟡 Demo Mode</span>
   {% endif %}
 </div>
 {% endblock %}

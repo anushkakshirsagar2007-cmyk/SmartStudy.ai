@@ -33,9 +33,9 @@
           {% endfor %}
         </div>
 
-        {% if not has_openai %}
+        {% if not has_ai %}
         <div style="padding:.75rem;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--radius-sm);margin-bottom:1rem;font-size:.8rem;color:#92400E">
-          ⚠ <strong>Fallback Mode:</strong> Add <code>OPENAI_API_KEY</code> to <code>.env</code> for real AI generation.
+          ⚠ <strong>Fallback Mode:</strong> Configure <code>GEMINI_API_KEY</code> or <code>OPENAI_API_KEY</code> on the server for real AI generation.
         </div>
         {% endif %}
 

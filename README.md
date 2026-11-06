@@ -108,6 +108,11 @@ smartstudy/
 - If `UPI_ID` is unset, checkout is disabled and displays a configuration error rather than showing a placeholder payment destination.
 - Set `BUSINESS_NAME`, `CONTACT_EMAIL`, and `REFUND_WINDOW` to customize the business identity and refund-policy wording. Configure the `SMTP_*` settings and `MAIL_FROM` to deliver password-reset and payment-receipt emails. If `SMTP_HOST` is empty, messages are printed to the server console for development.
 
+## 🤖 AI provider setup
+- Set `AI_PROVIDER=gemini` and `GEMINI_API_KEY` to use Google's Gemini API; the default model is `gemini-3.8-flash`. Generate a key in [Google AI Studio](https://aistudio.google.com/apikey).
+- Gemini currently offers free-tier usage for eligible models, subject to quotas and regional/model availability. Review Google's [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) and [terms](https://ai.google.dev/gemini-api/terms); free-tier content may be used to improve Google's products.
+- Alternatively set `AI_PROVIDER=openai` with `OPENAI_API_KEY`, or `AI_PROVIDER=openrouter` with an OpenRouter key. Never expose provider keys in client-side code or commit them.
+
 ## ✉️ Account email and database updates
 - Registration requires consent to the Terms and Privacy Policy and records its timestamp.
 - Email verification is disabled; account registration does not send verification emails. Password recovery and payment receipts can still send email when SMTP is configured.
@@ -147,7 +152,7 @@ The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres
 - **Backups:** `python backup.py` creates `backups/backup-<time>.zip` (database + uploads, last 14 kept). Schedule it daily.
 - **Search engines:** set `SITE_URL` in `.env`; `/robots.txt` and `/sitemap.xml` are generated. Submit the sitemap in Google Search Console.
 - **Legal pages** (`/terms`, `/privacy`, `/refund`) are plain templates: review and edit them for your situation before accepting real payments.
-- **Tests:** install `requirements.txt`, then run `pytest -q`. Install the browser once with `python -m playwright install chromium` to run the real-browser E2E test. The live AI integration test is skipped unless `OPENAI_API_KEY` is set and makes billable provider calls.
+- **Tests:** install `requirements.txt`, then run `pytest -q`. Install the browser once with `python -m playwright install chromium` to run the real-browser E2E test. The live OpenAI integration test is skipped unless `OPENAI_API_KEY` is set and may make billable provider calls.
 
 ## ✅ Launch checklist
 Complete and verify these items before accepting real users or payments:

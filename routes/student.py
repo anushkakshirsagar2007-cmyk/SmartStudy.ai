@@ -1,7 +1,6 @@
 import os
 import uuid
 import json
-import base64
 import io
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort, send_from_directory
@@ -20,7 +19,7 @@ def allowed_file(filename):
 
 def transcribe_scanned_pdf(file_path, subject, filename):
     """OCR locally when available, then use the configured vision model on bounded pages."""
-    from routes.api import ai_error_response, require_openai
+    from routes.api import ai_error_response, generate_vision_response, require_ai_client
 
     try:
         import pypdfium2
@@ -46,26 +45,23 @@ def transcribe_scanned_pdf(file_path, subject, filename):
     except Exception:
         current_app.logger.info('Optional local OCR could not process %s', filename, exc_info=True)
 
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
-        return '[Scanned PDF detected, but transcription requires OPENAI_API_KEY or working local pytesseract OCR.]'
+        return '[Scanned PDF detected, but transcription requires a configured AI API key or working local pytesseract OCR.]'
 
-    content = [{'type': 'text', 'text': f'Transcribe all readable text, equations, and labels from these first {page_limit} pages. Preserve page order. Subject: {subject}.'}]
+    image_data = []
     for image in images:
         image_buffer = io.BytesIO()
         image.save(image_buffer, format='JPEG', quality=85)
-        encoded = base64.b64encode(image_buffer.getvalue()).decode('ascii')
-        content.append({
-            'type': 'image_url',
-            'image_url': {'url': f'data:image/jpeg;base64,{encoded}'}
-        })
+        image_data.append(('image/jpeg', image_buffer.getvalue()))
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{'role': 'user', 'content': content}],
+        transcription = generate_vision_response(
+            client,
+            model,
+            f'Transcribe all readable text, equations, and labels from these first {page_limit} pages. Preserve page order. Subject: {subject}.',
+            image_data,
             max_tokens=3000
-        )
-        transcription = (response.choices[0].message.content or '').strip()
+        ).strip()
         return transcription or '[Scanned PDF transcription returned no text.]'
     except Exception as exc:
         result, status = ai_error_response(exc, 'Scanned PDF transcription')
@@ -437,45 +433,31 @@ def upload_document():
         elif ext in ('png', 'jpg', 'jpeg', 'webp'):
             page_count = 1
             # ─── Multimodal Vision AI Analysis ─────────────────────────────────
-            from routes.api import require_openai
-            client, model, _ = require_openai()
+            from routes.api import generate_vision_response, require_ai_client
+            client, model, _ = require_ai_client()
             if client:
-                import base64
                 with open(file_path, 'rb') as img_f:
-                    b64_data = base64.b64encode(img_f.read()).decode('utf-8')
+                    image_data = img_f.read()
                 mime = 'image/jpeg' if ext in ('jpg', 'jpeg') else f'image/{ext}'
                 try:
-                    vision_resp = client.chat.completions.create(
-                        model=model,
-                        messages=[{
-                            'role': 'user',
-                            'content': [
-                                {
-                                    'type': 'text',
-                                    'text': (
-                                        f"You are an expert academic tutor for {subject}.\n"
-                                        "Please analyze and comprehensively explain this study image/diagram in detail:\n"
-                                        "1. Detailed Transcription: Transcribe all visible text, formulas, math equations, or labels.\n"
-                                        "2. Diagram & Visual Analysis: Explain any diagrams, charts, graphs, flowcharts, anatomical structures, or circuits shown.\n"
-                                        "3. Comprehensive Concept Explanation: Provide an in-depth academic explanation of the theory and principles illustrated in this image so a student can study directly from it.\n"
-                                        "4. Key Study Takeaways: Highlight the critical points, exam tips, and definitions."
-                                    )
-                                },
-                                {
-                                    'type': 'image_url',
-                                    'image_url': {
-                                        'url': f'data:{mime};base64,{b64_data}'
-                                    }
-                                }
-                            ]
-                        }],
+                    content_text = generate_vision_response(
+                        client,
+                        model,
+                        (
+                            f"You are an expert academic tutor for {subject}.\n"
+                            "Please analyze and comprehensively explain this study image/diagram in detail:\n"
+                            "1. Detailed Transcription: Transcribe all visible text, formulas, math equations, or labels.\n"
+                            "2. Diagram & Visual Analysis: Explain any diagrams, charts, graphs, flowcharts, anatomical structures, or circuits shown.\n"
+                            "3. Comprehensive Concept Explanation: Provide an in-depth academic explanation of the theory and principles illustrated in this image so a student can study directly from it.\n"
+                            "4. Key Study Takeaways: Highlight the critical points, exam tips, and definitions."
+                        ),
+                        [(mime, image_data)],
                         max_tokens=2500
                     )
-                    content_text = vision_resp.choices[0].message.content
                 except Exception as ve:
                     content_text = f"Image study document: {file.filename}\n[Vision analysis note: {str(ve)}]"
             else:
-                content_text = f"Image study document: {file.filename}\n[Uploaded image. Add OPENAI_API_KEY to generate full vision breakdown.]"
+                content_text = f"Image study document: {file.filename}\n[Uploaded image. Configure an AI provider API key to generate full vision breakdown.]"
     except Exception as e:
         content_text = f'[Could not extract text: {str(e)}]'
     
@@ -517,14 +499,15 @@ def document_view(doc_id):
     related_notes = Note.query.filter_by(user_id=current_user.id, source_document_id=doc_id).all()
     related_quizzes = Quiz.query.filter_by(user_id=current_user.id, source_document_id=doc_id).all()
     related_flashcards = FlashcardSet.query.filter_by(user_id=current_user.id, source_document_id=doc_id).all()
-    has_openai = bool(current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY'))
+    from routes.api import has_ai_provider
+    has_ai = has_ai_provider()
     
     return render_template('student/document_view.html', 
                            doc=doc,
                            related_notes=related_notes,
                            related_quizzes=related_quizzes,
                            related_flashcards=related_flashcards,
-                           has_openai=has_openai)
+                           has_ai=has_ai)
 
 
 @student_bp.route('/workspace/file/<int:doc_id>')
@@ -767,12 +750,13 @@ def chat():
         ChatMessage.created_at.desc()
     ).limit(50).all()
     recent_messages = list(reversed(recent_messages))
-    has_openai = bool(current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY'))
+    from routes.api import has_ai_provider
+    has_ai = has_ai_provider()
     
     return render_template('student/chat.html', 
                            docs=docs, 
                            messages=recent_messages,
-                           has_openai=has_openai)
+                           has_ai=has_ai)
 
 
 # ─── Profile / Settings ────────────────────────────────────────────────────────

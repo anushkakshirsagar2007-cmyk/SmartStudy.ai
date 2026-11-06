@@ -9,41 +9,40 @@ from extensions import db
 api_bp = Blueprint('api', __name__)
 
 
-def get_openai_client():
-    """Get OpenAI / OpenRouter client if API key is configured."""
+def get_ai_client():
+    """Build the configured provider through the OpenAI-compatible client API."""
     import os
     from dotenv import load_dotenv
-    
-    api_key = current_app.config.get('OPENAI_API_KEY', '').strip()
-    if not api_key:
-        load_dotenv(override=True)
-        api_key = os.environ.get('OPENAI_API_KEY', '').strip()
-        if api_key:
-            current_app.config['OPENAI_API_KEY'] = api_key
-            current_app.config['OPENAI_MODEL'] = os.environ.get('OPENAI_MODEL', 'openai/gpt-4o-mini' if api_key.startswith('sk-or-') else 'gpt-4o-mini')
-
-    if not api_key:
-        return None
-    try:
-        from openai import OpenAI
+    load_dotenv(override=False)
+    provider = (current_app.config.get('AI_PROVIDER') or os.environ.get('AI_PROVIDER', 'openai')).strip().lower()
+    if provider == 'gemini':
+        api_key = (current_app.config.get('GEMINI_API_KEY') or os.environ.get('GEMINI_API_KEY', '')).strip()
+        model = (current_app.config.get('GEMINI_MODEL') or os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')).strip()
+        base_url = 'https://generativelanguage.googleapis.com/v1beta/openai/'
+    elif provider in ('openai', 'openrouter'):
+        api_key = (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).strip()
+        default_model = 'openai/gpt-4o-mini' if provider == 'openrouter' or api_key.startswith('sk-or-') else 'gpt-4o-mini'
+        model = (current_app.config.get('OPENAI_MODEL') or os.environ.get('OPENAI_MODEL', default_model)).strip()
         base_url = current_app.config.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL')
-        if not base_url and api_key.startswith('sk-or-'):
+        if not base_url and (provider == 'openrouter' or api_key.startswith('sk-or-')):
             base_url = 'https://openrouter.ai/api/v1'
-        
-        if base_url:
-            return OpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=current_app.config.get('OPENAI_TIMEOUT', 30),
-                default_headers={
-                    "HTTP-Referer": "https://smartstudy.ai",
-                    "X-Title": "SmartStudy.ai"
-                }
-            )
-        return OpenAI(api_key=api_key, timeout=current_app.config.get('OPENAI_TIMEOUT', 30))
-    except Exception as e:
-        current_app.logger.error(f"OpenAI Client Error: {e}")
+    else:
+        raise ValueError('AI_PROVIDER must be openai, openrouter, or gemini.')
+    if not api_key:
         return None
+    from openai import OpenAI
+    options = {
+        'api_key': api_key,
+        'timeout': current_app.config.get('OPENAI_TIMEOUT', 30)
+    }
+    if base_url:
+        options['base_url'] = base_url
+    if provider == 'openrouter':
+        options['default_headers'] = {
+            'HTTP-Referer': 'https://smartstudy.ai',
+            'X-Title': 'SmartStudy.ai'
+        }
+    return OpenAI(**options)
 
 
 def ai_error_response(exc, operation='AI request'):
@@ -52,40 +51,106 @@ def ai_error_response(exc, operation='AI request'):
     lowered = message.lower()
     status = getattr(exc, 'status_code', None)
     code = str(getattr(exc, 'code', '') or '').lower()
+    provider = current_app.config.get('AI_PROVIDER', 'openai')
+    key_setting = 'GEMINI_API_KEY' if provider == 'gemini' else 'OPENAI_API_KEY'
+    model_setting = 'GEMINI_MODEL' if provider == 'gemini' else 'OPENAI_MODEL'
     if status == 401 or any(term in lowered for term in ('invalid api key', 'incorrect api key', 'authentication_error')):
-        return jsonify({'error': 'The AI provider rejected the API key. Check OPENAI_API_KEY and try again.'}), 401
+        return jsonify({'error': f'The AI provider rejected the API key. Check {key_setting} and try again.'}), 401
     if status == 429 or 'rate_limit' in code or 'quota' in lowered or 'rate limit' in lowered:
         return jsonify({'error': 'The AI provider rate limit or quota was reached. Check your account quota or try again later.'}), 429
     if status == 404 or 'model_not_found' in code or 'model not found' in lowered or 'does not exist' in lowered:
-        return jsonify({'error': 'The configured AI model was not found. Check OPENAI_MODEL for this provider.'}), 400
+        return jsonify({'error': f'The configured AI model was not found. Check {model_setting} for this provider.'}), 400
     if 'timeout' in exc.__class__.__name__.lower() or 'timeout' in lowered or 'timed out' in lowered:
         return jsonify({'error': 'The AI provider timed out. Please try again.'}), 504
     current_app.logger.warning('%s failed: %s', operation, message)
     return jsonify({'error': f'{operation} failed. Please try again.'}), 502
 
 
-def require_openai():
-    """Check if OpenAI/OpenRouter is configured; returns (client, model, error) tuple."""
-    client = get_openai_client()
+def require_ai_client():
+    """Return the configured AI client, model, or a Flask error response."""
+    try:
+        client = get_ai_client()
+    except ValueError as exc:
+        return None, None, (jsonify({'error': str(exc)}), 503)
     if not client:
         return None, None, (jsonify({
-            'error': 'AI features require an API key. Please check your .env file or restart the server.'
+            'error': 'AI features require a provider API key. Set GEMINI_API_KEY for Gemini or OPENAI_API_KEY for OpenAI.'
         }), 503)
-    
+
     import os
-    api_key = (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).strip()
-    model = (current_app.config.get('OPENAI_MODEL') or os.environ.get('OPENAI_MODEL', 'openai/gpt-4o-mini')).strip()
-    
-    # Auto-adjust model name for OpenRouter if prefix is missing
-    if api_key.startswith('sk-or-'):
+    provider = current_app.config.get('AI_PROVIDER', 'openai')
+    if provider == 'gemini':
+        model = (current_app.config.get('GEMINI_MODEL') or os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')).strip()
+    else:
+        api_key = (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).strip()
+        default_model = 'openai/gpt-4o-mini' if provider == 'openrouter' or api_key.startswith('sk-or-') else 'gpt-4o-mini'
+        model = (current_app.config.get('OPENAI_MODEL') or os.environ.get('OPENAI_MODEL', default_model)).strip()
+    if provider in ('openrouter', 'openai') and (
+        provider == 'openrouter'
+        or (current_app.config.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY', '')).startswith('sk-or-')
+    ):
         if model in ('gpt-3.5-turbo', 'openai/gpt-3.5-turbo'):
             model = 'openai/gpt-4o-mini'
         elif '/' not in model:
             model = f'openai/{model}'
-    elif model.startswith('openai/') and not (current_app.config.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL')):
+    elif provider == 'openai' and model.startswith('openai/') and not (
+        current_app.config.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL')
+    ):
         model = model.split('/', 1)[1]  # plain OpenAI keys use bare model names
     
     return client, model, None
+
+
+def has_ai_provider():
+    import os
+    provider = current_app.config.get('AI_PROVIDER', 'openai')
+    key_name = 'GEMINI_API_KEY' if provider == 'gemini' else 'OPENAI_API_KEY'
+    return bool(current_app.config.get(key_name) or os.environ.get(key_name))
+
+
+def generate_vision_response(client, model, prompt, images, max_tokens):
+    """Run multimodal analysis through the configured AI provider."""
+    import base64
+    import os
+    if current_app.config.get('AI_PROVIDER') == 'gemini':
+        import httpx
+        from urllib.parse import quote
+
+        api_key = (current_app.config.get('GEMINI_API_KEY') or os.environ.get('GEMINI_API_KEY', '')).strip()
+        parts = [{'text': prompt}]
+        parts.extend(
+            {'inline_data': {'mime_type': mime_type, 'data': base64.b64encode(data).decode('ascii')}}
+            for mime_type, data in images
+        )
+        response = httpx.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/{quote(model, safe="-._")}:generateContent',
+            headers={'x-goog-api-key': api_key},
+            json={
+                'contents': [{'role': 'user', 'parts': parts}],
+                'generationConfig': {'maxOutputTokens': max_tokens}
+            },
+            timeout=current_app.config.get('OPENAI_TIMEOUT', 30)
+        )
+        response.raise_for_status()
+        candidates = response.json().get('candidates', [])
+        if not candidates:
+            raise RuntimeError('Gemini returned no vision response.')
+        text = ''.join(part.get('text', '') for part in candidates[0].get('content', {}).get('parts', []))
+        if not text.strip():
+            raise RuntimeError('Gemini returned an empty vision response.')
+        return text
+
+    content = [{'type': 'text', 'text': prompt}]
+    content.extend({
+        'type': 'image_url',
+        'image_url': {'url': f'data:{mime_type};base64,{base64.b64encode(data).decode("ascii")}'}
+    } for mime_type, data in images)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{'role': 'user', 'content': content}],
+        max_tokens=max_tokens
+    )
+    return response.choices[0].message.content or ''
 
 
 def truncate_text(text, max_chars=8000):
@@ -146,7 +211,7 @@ def generate_notes():
     if not doc.content_text or len(doc.content_text.strip()) < 50:
         return jsonify({'error': 'Document has insufficient extractable text. Please upload a document with readable content.'}), 400
     
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
         return error
     
@@ -212,7 +277,7 @@ def generate_summary():
     if not doc.content_text or len(doc.content_text.strip()) < 50:
         return jsonify({'error': 'Document has insufficient text for summarization.'}), 400
     
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
         return error
     
@@ -262,7 +327,7 @@ def generate_quiz():
     if not doc.content_text or len(doc.content_text.strip()) < 100:
         return jsonify({'error': 'Document needs more text content to generate meaningful quiz questions.'}), 400
     
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
         return error
     
@@ -381,7 +446,7 @@ def generate_flashcards():
     if not doc.content_text or len(doc.content_text.strip()) < 100:
         return jsonify({'error': 'Document needs more text content to generate flashcards.'}), 400
     
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
         return error
     
@@ -480,7 +545,7 @@ def ai_chat():
     )
     db.session.add(user_msg)
     
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
         db.session.commit()  # Save user message
         return error
@@ -560,7 +625,7 @@ def ask_document():
     if not doc.content_text or len(doc.content_text.strip()) < 50:
         return jsonify({'error': 'Document has insufficient text to answer questions.'}), 400
     
-    client, model, error = require_openai()
+    client, model, error = require_ai_client()
     if error:
         return error
     
