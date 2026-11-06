@@ -1,4 +1,5 @@
 import os
+import tempfile
 from flask import Flask, request, jsonify, flash, redirect
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_sqlalchemy import SQLAlchemy
@@ -42,7 +43,10 @@ def create_app():
     app.config['WTF_CSRF_TIME_LIMIT'] = None
     app.config['SQLALCHEMY_DATABASE_URI'] = _database_uri_from_env()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    default_upload_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+    if os.environ.get('VERCEL') == '1':
+        default_upload_folder = os.path.join(tempfile.gettempdir(), 'smartstudy-uploads')
+    app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER') or default_upload_folder
     # Keep multipart uploads below Vercel's request-body limit.
     app.config['MAX_UPLOAD_FILE_SIZE'] = 3 * 1024 * 1024
     app.config['MAX_CONTENT_LENGTH'] = min(4 * 1024 * 1024, int(os.environ.get('MAX_CONTENT_LENGTH', 4 * 1024 * 1024)))

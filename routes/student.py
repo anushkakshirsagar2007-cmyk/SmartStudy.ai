@@ -392,10 +392,14 @@ def upload_document():
     
     # Create user-specific subdirectory
     user_upload_dir = os.path.join(upload_path, str(current_user.id))
-    os.makedirs(user_upload_dir, exist_ok=True)
-    
     file_path = os.path.join(user_upload_dir, stored_name)
-    file.save(file_path)
+    try:
+        os.makedirs(user_upload_dir, exist_ok=True)
+        file.save(file_path)
+    except OSError:
+        current_app.logger.exception('Failed to store uploaded document for user %s', current_user.id)
+        flash('Could not save the uploaded file. Please try again.', 'error')
+        return redirect(url_for('student.workspace'))
     
     # Extract text content with improved handling
     content_text = ''

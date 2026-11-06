@@ -138,7 +138,7 @@ python init_db.py
 
 The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres://` or `postgresql://` URL, and uses SQLite locally when `DATABASE_URL` is unset. `psycopg` is included in `requirements.txt` as the PostgreSQL driver.
 
-**Vercel persistence limitation:** this database setup persists relational records, but uploaded files are currently written to the function's local `uploads/` directory and are not durable. Move uploads to persistent object storage before relying on document uploads in production. Verify static assets and all app flows on the deployed Vercel URL before inviting users.
+**Vercel persistence limitation:** uploaded files are written to the function's writable temporary directory on Vercel. That storage is not durable and may disappear between function invocations. Use persistent object storage before relying on original-document previews or downloads in production. Extracted document text is stored in the database. Verify static assets and all app flows on the deployed Vercel URL before inviting users.
 
 
 ## 🛡️ Login limits, backups, SEO

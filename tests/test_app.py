@@ -79,6 +79,21 @@ def test_public_homepage_and_static_assets_load():
     assert favicon.mimetype == "image/vnd.microsoft.icon"
 
 
+def test_vercel_uses_writable_temporary_upload_directory(monkeypatch, tmp_path):
+    from extensions import create_app
+    import tempfile
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("UPLOAD_FOLDER", "")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'vercel.sqlite'}")
+
+    vercel_app = create_app()
+
+    assert vercel_app.config["UPLOAD_FOLDER"] == os.path.join(
+        tempfile.gettempdir(), "smartstudy-uploads"
+    )
+
+
 def test_public_pricing_page_explains_manual_payment_and_limits():
     response = app.test_client().get("/pricing")
 
