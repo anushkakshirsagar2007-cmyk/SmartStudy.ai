@@ -43,8 +43,9 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = _database_uri_from_env()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-    # File uploads: Removed strict limit (1GB buffer) and added image formats (png, jpg, jpeg, webp)
-    app.config['MAX_CONTENT_LENGTH'] = min(10 * 1024 * 1024, int(os.environ.get('MAX_CONTENT_LENGTH', 10 * 1024 * 1024)))
+    # Keep multipart uploads below Vercel's request-body limit.
+    app.config['MAX_UPLOAD_FILE_SIZE'] = 3 * 1024 * 1024
+    app.config['MAX_CONTENT_LENGTH'] = min(4 * 1024 * 1024, int(os.environ.get('MAX_CONTENT_LENGTH', 4 * 1024 * 1024)))
     app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'txt', 'docx', 'md', 'png', 'jpg', 'jpeg', 'webp'}
     app.config['OPENAI_API_KEY'] = os.environ.get('OPENAI_API_KEY', '')
     app.config['OPENAI_MODEL'] = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
@@ -118,6 +119,7 @@ def create_app():
             'now': datetime.utcnow(),
             'PLAN_DETAILS': PLAN_DETAILS,
             'FREE_UPLOAD_LIMIT': FREE_UPLOAD_LIMIT,
+            'MAX_UPLOAD_FILE_SIZE': app.config['MAX_UPLOAD_FILE_SIZE'],
             'UPI_ID': app.config['UPI_ID'],
             'business_name': app.config['BUSINESS_NAME'],
             'contact_email': app.config['CONTACT_EMAIL'],

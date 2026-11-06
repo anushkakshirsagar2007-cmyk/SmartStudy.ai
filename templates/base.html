@@ -129,15 +129,6 @@
 
       <!-- Flash Messages -->
       <div class="flash-container" aria-live="polite">
-        {% if not current_user.is_admin() and not current_user.is_verified %}
-        <div class="flash-msg warning" role="status">
-          <span>⚠</span>
-          <span>Your email is not verified. Check your inbox or request a new verification link.</span>
-          <form method="POST" action="{{ url_for('auth.resend_verification') }}" style="margin-left:auto">
-            <button type="submit" class="btn btn-sm btn-secondary">Resend verification</button>
-          </form>
-        </div>
-        {% endif %}
         {% with messages = get_flashed_messages(with_categories=True) %}
           {% for category, msg in messages %}
             <div class="flash-msg {{ category }}" role="alert">

@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint, current_app, render_template, request, Response
+from flask import Blueprint, current_app, render_template, request, Response, send_from_directory
 
 main_bp = Blueprint('main', __name__)
 
@@ -31,6 +31,22 @@ def privacy():
 @main_bp.route('/refund')
 def refund():
     return render_template('legal.html', page='refund')
+
+@main_bp.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(current_app.static_folder, 'images'),
+        'favicon.ico',
+        mimetype='image/vnd.microsoft.icon'
+    )
+
+@main_bp.route('/googlee6eb1f6d096a6024.html')
+def google_site_verification():
+    return send_from_directory(
+        os.path.join(current_app.root_path, 'public'),
+        'googlee6eb1f6d096a6024.html',
+        mimetype='text/html'
+    )
 
 @main_bp.route('/robots.txt')
 def robots():

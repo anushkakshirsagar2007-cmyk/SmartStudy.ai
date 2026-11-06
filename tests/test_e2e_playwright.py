@@ -19,7 +19,7 @@ def running_app(tmp_path, monkeypatch):
 
     app = create_app()
     app.config['UPLOAD_FOLDER'] = str(tmp_path / 'uploads')
-    app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+    app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
     with app.app_context():
         db.create_all()
         admin = User(full_name='Browser Admin', username='browseradmin',
@@ -75,9 +75,7 @@ def test_student_workflows_manual_payment_and_admin_approval(running_app):
         page.locator('#login-password').fill('BrowserPass1!')
         page.locator('#submit-btn').click()
         page.wait_for_url('**/student/dashboard')
-        assert page.get_by_text('Your email is not verified.').count() == 1
-        page.get_by_role('button', name='Resend verification').click()
-        page.wait_for_load_state('networkidle')
+        assert page.get_by_text('Your email is not verified.').count() == 0
 
         with app.app_context():
             student = User.query.filter_by(email='browser-student@example.test').one()

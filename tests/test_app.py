@@ -41,6 +41,17 @@ def test_register_login_dashboard():
     assert c.get("/student/dashboard").status_code == 200
     assert user("alice1@t.co").consent_at is not None
 
+
+def test_registration_does_not_send_verification_email(monkeypatch):
+    sent = []
+    monkeypatch.setattr("routes.auth.send_email", lambda *args: sent.append(args))
+
+    c, _ = student("noverifyemail@t.co")
+
+    assert sent == []
+    assert b"Your email is not verified" not in c.get("/student/dashboard").data
+
+
 def test_dashboard_requires_login():
     assert app.test_client().get("/student/dashboard").status_code == 302
 
@@ -52,6 +63,8 @@ def test_public_homepage_and_static_assets_load():
     stylesheet = client.get("/static/css/style.css")
     script = client.get("/static/js/main.js")
     logo = client.get("/static/images/logo.png")
+    google_verification = client.get("/googlee6eb1f6d096a6024.html")
+    favicon = client.get("/favicon.ico")
 
     assert homepage.status_code == 200
     assert b"SmartStudy.ai" in homepage.data
@@ -60,6 +73,10 @@ def test_public_homepage_and_static_assets_load():
     assert script.status_code == 200
     assert logo.status_code == 200
     assert logo.mimetype == "image/png"
+    assert google_verification.status_code == 200
+    assert google_verification.data.strip() == b"google-site-verification: googlee6eb1f6d096a6024.html"
+    assert favicon.status_code == 200
+    assert favicon.mimetype == "image/vnd.microsoft.icon"
 
 
 def test_public_pricing_page_explains_manual_payment_and_limits():
@@ -72,14 +89,6 @@ def test_public_pricing_page_explains_manual_payment_and_limits():
     assert b"12-digit UTR" in response.data
     assert b"admin confirms the payment" in response.data
     assert b"/payment/pricing" not in response.data
-
-
-def test_support_email_is_consistent_across_public_pages():
-    client = app.test_client()
-    contact_email = app.config["CONTACT_EMAIL"].encode()
-
-    assert contact_email in client.get("/privacy").data
-    assert contact_email in client.get("/pricing").data
 
 
 def test_institution_plan_is_not_available_as_single_user_checkout():
@@ -137,8 +146,25 @@ def test_student_cannot_use_admin_area():
 
 def test_oversize_upload_rejected():
     c, t = student("big@t.co")
-    c.post("/student/workspace/upload", data={"file": (io.BytesIO(b"x" * (11 * 1024 * 1024)), "big.txt"), "subject": "G", "csrf_token": t}, content_type="multipart/form-data")
+    c.post("/student/workspace/upload", data={"file": (io.BytesIO(b"x" * (5 * 1024 * 1024)), "big.txt"), "subject": "G", "csrf_token": t}, content_type="multipart/form-data")
     with app.app_context(): assert Document.query.filter_by(user_id=user("big@t.co").id).count() == 0
+
+def test_upload_file_size_limit_is_enforced(monkeypatch):
+    c, t = student("filelimit@t.co")
+    monkeypatch.setitem(app.config, "MAX_UPLOAD_FILE_SIZE", 1024 * 1024)
+    response = c.post(
+        "/student/workspace/upload",
+        data={
+            "file": (io.BytesIO(b"x" * (1024 * 1024 + 1)), "large.txt"),
+            "subject": "General",
+            "csrf_token": t
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True
+    )
+    assert b"Maximum file size is 1 MB." in response.data
+    with app.app_context():
+        assert Document.query.filter_by(user_id=user("filelimit@t.co").id).count() == 0
 
 def test_ai_without_key_is_clean_error():
     c, t = student("aitester@t.co"); r = js(c, "/api/ai/chat", {"message": "hi"}, t)

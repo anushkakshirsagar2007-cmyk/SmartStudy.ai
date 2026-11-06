@@ -33,21 +33,6 @@ def _token_serializer():
     return URLSafeTimedSerializer(current_app.config['SECRET_KEY'], salt='smartstudy-email-verification')
 
 
-def _verification_url(user):
-    token = _token_serializer().dumps({'user_id': user.id, 'email': user.email})
-    base = current_app.config['SITE_URL'] or request.url_root.rstrip('/')
-    return f'{base}{url_for("auth.verify_email", token=token)}'
-
-
-def _send_verification(user):
-    if _action_limited('verification-email', user.email):
-        return False
-    link = _verification_url(user)
-    send_email(user.email, 'Verify your SmartStudy.ai email',
-               f'Hi {user.full_name},\n\nVerify your email address using this link (valid for 24 hours):\n{link}\n')
-    return True
-
-
 def _password_reset_url(token):
     base = current_app.config['SITE_URL'] or request.url_root.rstrip('/')
     return f'{base}{url_for("auth.reset_password", token=token)}'
@@ -143,8 +128,7 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        _send_verification(user)
-        flash('Account created. Please log in and check your email to verify your address.', 'success')
+        flash('Account created. Please log in.', 'success')
         return redirect(url_for('auth.login'))
     
     return render_template('auth/register.html', form_data={})
@@ -283,12 +267,7 @@ def verify_email(token):
 @auth_bp.route('/resend-verification', methods=['POST'])
 @login_required
 def resend_verification():
-    if current_user.is_verified:
-        flash('Your email address is already verified.', 'info')
-    elif not _send_verification(current_user):
-        flash('Please wait before requesting another verification email.', 'error')
-    else:
-        flash('If your account needs verification, a new link has been sent.', 'info')
+    flash('Email verification is disabled.', 'info')
     return redirect(request.referrer or url_for('student.dashboard'))
 
 

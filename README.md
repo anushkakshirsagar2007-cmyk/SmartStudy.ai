@@ -106,17 +106,17 @@ smartstudy/
 ## 💳 Payments
 - **Manual UPI only:** set `UPI_ID` to the UPI account that receives payments. Students pay the displayed amount and submit the 12-digit UTR. A plan remains inactive until an admin verifies receipt and approves it in **Admin → Payments**. No payment gateway or automatic renewal is used.
 - If `UPI_ID` is unset, checkout is disabled and displays a configuration error rather than showing a placeholder payment destination.
-- Set `BUSINESS_NAME`, `CONTACT_EMAIL`, and `REFUND_WINDOW` to customize the business identity and refund-policy wording. Configure the `SMTP_*` settings and `MAIL_FROM` to deliver verification, reset, and receipt emails. If `SMTP_HOST` is empty, messages (including their links) are printed to the server console for development.
+- Set `BUSINESS_NAME`, `CONTACT_EMAIL`, and `REFUND_WINDOW` to customize the business identity and refund-policy wording. Configure the `SMTP_*` settings and `MAIL_FROM` to deliver password-reset and payment-receipt emails. If `SMTP_HOST` is empty, messages are printed to the server console for development.
 
 ## ✉️ Account email and database updates
 - Registration requires consent to the Terms and Privacy Policy and records its timestamp.
-- New accounts receive a signed email-verification link (valid for 24 hours); signed-in unverified users see a banner with a rate-limited resend action.
+- Email verification is disabled; account registration does not send verification emails. Password recovery and payment receipts can still send email when SMTP is configured.
 - Password recovery uses a generic response, a hashed single-use token, and a 30-minute expiry. Do not share reset links or console output.
 - Existing databases are updated without deleting data when you run `python init_db.py`; new tables are added and the nullable account metadata columns are added only when missing.
 - Scanned-PDF image processing is capped by `SCANNED_PDF_PAGE_LIMIT` (maximum five pages). `pytesseract` is optional and is not installed by requirements because it also needs a separately installed Tesseract executable.
 
 ## 🔒 Security notes
-CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, 10 MB upload limit, `SECRET_KEY` required, debug off by default. Never commit `.env`, `instance/` or `uploads/`.
+CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, 3 MB per-file upload limit and 4 MB total request limit for serverless hosting, `SECRET_KEY` required, debug off by default. Never commit `.env`, `instance/` or `uploads/`.
 
 ## 🚀 Deploying on Vercel with PostgreSQL
 The default local database is SQLite (`instance/smartstudy.db`). Do not use that file as production storage on Vercel: serverless instances can be replaced or scaled independently, so SQLite data is not reliably persistent or shared between instances.
@@ -143,7 +143,7 @@ The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres
 
 ## 🛡️ Login limits, backups, SEO
 - 5 failed logins per email+IP locks login for 5 minutes. Logout is a POST (CSRF-safe).
-- **Forgot password?** Use the password-recovery link on the sign-in page. Reset requests and verification email resends are rate-limited.
+- **Forgot password?** Use the password-recovery link on the sign-in page. Reset requests are rate-limited.
 - **Backups:** `python backup.py` creates `backups/backup-<time>.zip` (database + uploads, last 14 kept). Schedule it daily.
 - **Search engines:** set `SITE_URL` in `.env`; `/robots.txt` and `/sitemap.xml` are generated. Submit the sitemap in Google Search Console.
 - **Legal pages** (`/terms`, `/privacy`, `/refund`) are plain templates: review and edit them for your situation before accepting real payments.
@@ -155,6 +155,6 @@ Complete and verify these items before accepting real users or payments:
 - Set `UPI_ID` to the correct receiving account, confirm the account is authorized to receive business payments, and test student UTR submission and admin approval end to end.
 - Confirm with a qualified tax professional which GST registration, tax collection, and invoice requirements apply to the business and the specific services; implement the required invoicing and records.
 - Have the Terms, Privacy Policy, and refund wording reviewed by a lawyer for the operating jurisdiction and actual product practices.
-- Confirm SMTP delivery, account recovery, email verification, payment receipts, backups, HTTPS, and production cookie settings.
+- Confirm SMTP delivery for account recovery and payment receipts, backups, HTTPS, and production cookie settings.
 
 This checklist is operational guidance only; completing it does not establish or guarantee legal, tax, or regulatory compliance.

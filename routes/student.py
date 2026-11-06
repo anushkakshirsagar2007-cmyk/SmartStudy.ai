@@ -376,6 +376,14 @@ def upload_document():
     if not allowed_file(file.filename):
         flash('File type not supported. Please upload PDF, TXT, DOCX, or MD files.', 'error')
         return redirect(url_for('student.workspace'))
+
+    file.stream.seek(0, os.SEEK_END)
+    file_size = file.stream.tell()
+    file.stream.seek(0)
+    max_file_size = current_app.config['MAX_UPLOAD_FILE_SIZE']
+    if file_size > max_file_size:
+        flash(f'File too large. Maximum file size is {max_file_size // (1024 * 1024)} MB.', 'error')
+        return redirect(url_for('student.workspace'))
     
     # Secure storage
     ext = file.filename.rsplit('.', 1)[1].lower()
@@ -388,7 +396,6 @@ def upload_document():
     
     file_path = os.path.join(user_upload_dir, stored_name)
     file.save(file_path)
-    file_size = os.path.getsize(file_path)
     
     # Extract text content with improved handling
     content_text = ''

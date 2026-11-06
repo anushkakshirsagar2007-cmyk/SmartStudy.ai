@@ -55,8 +55,8 @@
           <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:2rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)">
             <div style="font-size:2.5rem;margin-bottom:.75rem">📁</div>
             <p style="font-weight:600;color:var(--text-primary);margin-bottom:.25rem">Drop file here or click to browse</p>
-            <p style="font-size:.8rem;color:var(--text-muted)">Supports PDF, Images (JPG, PNG, WEBP), DOCX, TXT · Maximum 10 MB</p>
-            <input type="file" name="file" id="file-input" accept=".pdf,.txt,.docx,.doc,.md,.png,.jpg,.jpeg,.webp" required style="display:none" />
+            <p style="font-size:.8rem;color:var(--text-muted)">Supports PDF, Images (JPG, PNG, WEBP), DOCX, TXT · Maximum 3 MB</p>
+            <input type="file" name="file" id="file-input" accept=".pdf,.txt,.docx,.md,.png,.jpg,.jpeg,.webp" required style="display:none" />
           </div>
           <div id="file-preview" style="display:none;margin-top:.75rem;padding:.875rem;background:var(--primary-50);border-radius:var(--radius);border:1px solid var(--primary-200)">
             <div style="display:flex;align-items:center;gap:.75rem">
@@ -172,14 +172,14 @@
   });
 
   function handleFile(file) {
-    const allowed = ['pdf', 'txt', 'docx', 'doc', 'md'];
+    const allowed = ['pdf', 'txt', 'docx', 'md', 'png', 'jpg', 'jpeg', 'webp'];
     const ext = file.name.split('.').pop().toLowerCase();
     if (!allowed.includes(ext)) {
       showFlash('Unsupported file type. Please use PDF, TXT, DOCX, or MD.', 'error');
       return;
     }
-    if (file.size > 16 * 1024 * 1024) {
-      showFlash('File size must be under 16MB.', 'error');
+    if (file.size > {{ MAX_UPLOAD_FILE_SIZE }}) {
+      showFlash('File size must be 3 MB or less.', 'error');
       return;
     }
     const dt = new DataTransfer();
