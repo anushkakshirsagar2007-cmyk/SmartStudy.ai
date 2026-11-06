@@ -121,7 +121,7 @@ smartstudy/
 - Scanned/image-heavy PDF processing is capped by `SCANNED_PDF_PAGE_LIMIT` (default 20, maximum 50). Summaries and study notes are generated from the full extracted content in bounded chunks; large documents may require multiple provider requests and can hit OpenRouter rate limits.
 
 ## 🔒 Security notes
-CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, 3 MB per-file upload limit and 4 MB total request limit for serverless hosting, `SECRET_KEY` required, debug off by default. Never commit `.env`, `instance/` or `uploads/`.
+CSRF protection on all forms and fetch calls, HttpOnly/SameSite cookies, `SECRET_KEY` required, debug off by default. Without Supabase Storage, the local multipart fallback is limited to 3 MB per file and 4 MB per request. Never commit `.env`, `instance/` or `uploads/`.
 
 ## 🚀 Deploying on Vercel with PostgreSQL
 The default local database is SQLite (`instance/smartstudy.db`). Do not use that file as production storage on Vercel: serverless instances can be replaced or scaled independently, so SQLite data is not reliably persistent or shared between instances.
@@ -143,7 +143,17 @@ python init_db.py
 
 The application automatically uses PostgreSQL when `DATABASE_URL` is a `postgres://` or `postgresql://` URL, and uses SQLite locally when `DATABASE_URL` is unset. `psycopg` is included in `requirements.txt` as the PostgreSQL driver.
 
-**Vercel persistence limitation:** uploaded files are written to the function's writable temporary directory on Vercel. That storage is not durable and may disappear between function invocations. Use persistent object storage before relying on original-document previews or downloads in production. Extracted document text is stored in the database. Verify static assets and all app flows on the deployed Vercel URL before inviting users.
+**Vercel document storage:** configure Supabase Storage for persistent uploads and previews. Without it, uploads use the local fallback, which is limited to 3 MB per file and is not durable on Vercel.
+
+### Supabase Storage for document uploads
+1. Create a Supabase project and a **private** Storage bucket (the default bucket name used by the app is `study-documents`).
+2. In Vercel, add `SUPABASE_URL` (the project URL), `SUPABASE_SERVICE_ROLE_KEY` (the server-only service role key), and `SUPABASE_STORAGE_BUCKET` (the bucket name) under **Project → Settings → Environment Variables**. Add the values to each environment you deploy and redeploy.
+3. Keep the service role key secret. The browser only receives a short-lived signed upload URL; it never receives the service role key. The bucket's configured file-size limit, project storage quota, and billing plan still apply. Adjust the bucket limit in Supabase if appropriate for your project.
+4. For an existing hosted database, redeploy and run `python init_db.py` against that database to apply supported schema updates. Then upload a test PDF and confirm that it appears in the workspace and that preview and delete work. Existing local uploads are not migrated automatically.
+
+With Supabase configured, the browser sends document bytes directly to Storage, bypassing Vercel's request-body limit and the app's local 3 MB multipart limit. The current direct-upload method uses a signed standard upload; Supabase recommends resumable TUS uploads for files over 6 MB for greater reliability. This removes the app's free-account document-count quota, not Supabase's storage limits.
+
+Upload size is not the only processing constraint: the app downloads each file to a Vercel function for extraction and AI analysis. This project configures a 60-second function timeout, so very large files can still exceed function time, memory, or temporary-disk limits. Scanned/image-heavy PDF vision processing is capped by `SCANNED_PDF_PAGE_LIMIT` (default 20, maximum 50), and model output can be imperfect. No image or PDF analysis is guaranteed perfect.
 
 
 ## 🛡️ Login limits, backups, SEO

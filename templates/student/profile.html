@@ -41,12 +41,6 @@
           {{ PLAN_DETAILS[current_user.subscription_plan]['name'] if current_user.subscription_plan in PLAN_DETAILS else 'Free Tier' }}
         </span>
       </div>
-      {% if not current_user.is_pro %}
-      <div style="display:flex; justify-content:space-between;">
-        <span style="color:var(--text-muted);">Uploads Left:</span>
-        <span style="font-weight:700; color: #10B981;">{{ current_user.uploads_remaining }} of {{ FREE_UPLOAD_LIMIT }}</span>
-      </div>
-      {% endif %}
       <a href="{{ url_for('payment.pricing') }}" class="btn btn-primary btn-sm" style="margin-top: 0.5rem; text-align: center; justify-content: center; font-size: 0.8rem;">
         💎 {% if current_user.is_pro %}Manage Plan{% else %}Upgrade to Pro{% endif %}
       </a>

@@ -25,25 +25,13 @@
         </div>
         <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.35rem;">
           {% if current_user.is_pro %}
-            Unlimited study document uploads and access to all available AI features.
+            Access to all available AI features while your subscription is active.
           {% else %}
-            Uploads used: <strong>{{ current_user.free_uploads_used }}</strong> of <strong>{{ FREE_UPLOAD_LIMIT }}</strong> free PDFs
-            ({{ current_user.uploads_remaining }} remaining).
+            Study document uploads and AI study tools are available on this plan.
           {% endif %}
         </div>
       </div>
 
-      {% if not current_user.is_pro %}
-      <div style="min-width: 220px;">
-        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem; font-weight: 600;">
-          <span>Free Upload Limit</span>
-          <span>{{ current_user.free_uploads_used }}/{{ FREE_UPLOAD_LIMIT }} used</span>
-        </div>
-        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 99px; overflow: hidden;">
-          <div style="width: {{ (current_user.free_uploads_used / FREE_UPLOAD_LIMIT * 100)|int }}%; height: 100%; background: {% if current_user.free_uploads_used >= FREE_UPLOAD_LIMIT %}#EF4444{% else %}#7C3AED{% endif %}; border-radius: 99px;"></div>
-        </div>
-      </div>
-      {% endif %}
     </div>
   </div>
 
@@ -67,7 +55,7 @@
 
         <ul style="list-style: none; padding: 0; margin: 1.5rem 0; flex: 1;">
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited study document uploads</strong>
+            <span style="color: #10B981; font-weight: 700;">✓</span> All free plan features
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
             <span style="color: #10B981; font-weight: 700;">✓</span> AI-generated study notes
@@ -109,7 +97,7 @@
             <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Everything in Monthly Pro</strong>
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <span style="color: #10B981; font-weight: 700;">✓</span> <strong>Unlimited study document uploads for 365 days</strong>
+            <span style="color: #10B981; font-weight: 700;">✓</span> All free plan features for 365 days
           </li>
           <li style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.75rem; font-size: 0.875rem;">
             <span style="color: #10B981; font-weight: 700;">✓</span> Study notes, quizzes, flashcards, and chat

@@ -47,10 +47,18 @@ def create_app():
     if os.environ.get('VERCEL') == '1':
         default_upload_folder = os.path.join(tempfile.gettempdir(), 'smartstudy-uploads')
     app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER') or default_upload_folder
-    # Keep multipart uploads below Vercel's request-body limit.
+    # Multipart uploads remain small; configured Supabase uploads go directly from browser to storage.
     app.config['MAX_UPLOAD_FILE_SIZE'] = 3 * 1024 * 1024
     app.config['MAX_CONTENT_LENGTH'] = min(4 * 1024 * 1024, int(os.environ.get('MAX_CONTENT_LENGTH', 4 * 1024 * 1024)))
     app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'txt', 'docx', 'md', 'png', 'jpg', 'jpeg', 'webp'}
+    app.config['SUPABASE_URL'] = os.environ.get('SUPABASE_URL', '').rstrip('/')
+    app.config['SUPABASE_SERVICE_ROLE_KEY'] = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
+    app.config['SUPABASE_STORAGE_BUCKET'] = os.environ.get('SUPABASE_STORAGE_BUCKET', 'study-documents')
+    app.config['SUPABASE_STORAGE_ENABLED'] = bool(
+        app.config['SUPABASE_URL']
+        and app.config['SUPABASE_SERVICE_ROLE_KEY']
+        and app.config['SUPABASE_STORAGE_BUCKET']
+    )
     app.config['OPENROUTER_API_KEY'] = os.environ.get('OPENROUTER_API_KEY', '')
     app.config['OPENROUTER_MODEL'] = os.environ.get('OPENROUTER_MODEL', 'openrouter/free')
     app.config['OPENROUTER_TIMEOUT'] = float(os.environ.get('OPENROUTER_TIMEOUT', '30'))
@@ -118,12 +126,12 @@ def create_app():
     @app.context_processor
     def inject_globals():
         from datetime import datetime
-        from models import PLAN_DETAILS, FREE_UPLOAD_LIMIT
+        from models import PLAN_DETAILS
         return {
             'now': datetime.utcnow(),
             'PLAN_DETAILS': PLAN_DETAILS,
-            'FREE_UPLOAD_LIMIT': FREE_UPLOAD_LIMIT,
             'MAX_UPLOAD_FILE_SIZE': app.config['MAX_UPLOAD_FILE_SIZE'],
+            'SUPABASE_STORAGE_ENABLED': app.config['SUPABASE_STORAGE_ENABLED'],
             'UPI_ID': app.config['UPI_ID'],
             'business_name': app.config['BUSINESS_NAME'],
             'contact_email': app.config['CONTACT_EMAIL'],

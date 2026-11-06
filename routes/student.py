@@ -2,12 +2,15 @@ import os
 import uuid
 import json
 import io
+import re
+import tempfile
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort, send_from_directory
 from flask_login import login_required, current_user
-from models import User, Note, Task, Document, Quiz, Question, QuizAttempt, FlashcardSet, Flashcard, ChatMessage, StudySession, FREE_UPLOAD_LIMIT
+from models import User, Note, Task, Document, Quiz, Question, QuizAttempt, FlashcardSet, Flashcard, ChatMessage, StudySession
 from extensions import db
 from sqlalchemy import func
+from werkzeug.utils import secure_filename
 
 student_bp = Blueprint('student', __name__)
 
@@ -15,6 +18,262 @@ ALLOWED_EXTENSIONS = {'pdf', 'txt', 'docx', 'md', 'png', 'jpg', 'jpeg', 'webp'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _supabase_storage_api_url(path):
+    base_url = current_app.config['SUPABASE_URL']
+    return f"{base_url}/storage/v1/{path.lstrip('/')}"
+
+
+def _supabase_storage_headers():
+    service_key = current_app.config['SUPABASE_SERVICE_ROLE_KEY']
+    return {
+        'apikey': service_key,
+        'Authorization': f'Bearer {service_key}'
+    }
+
+
+def _supabase_signed_url(value):
+    base_url = current_app.config['SUPABASE_URL']
+    if value.startswith(('https://', 'http://')):
+        return value
+    if value.startswith('/storage/v1/'):
+        return f'{base_url}{value}'
+    return f'{base_url}/storage/v1{value if value.startswith("/") else "/" + value}'
+
+
+def create_supabase_upload_url(object_key):
+    import httpx
+    from urllib.parse import quote
+
+    bucket = quote(current_app.config['SUPABASE_STORAGE_BUCKET'], safe='')
+    key = quote(object_key, safe='/')
+    response = httpx.post(
+        _supabase_storage_api_url(f'object/upload/sign/{bucket}/{key}'),
+        headers=_supabase_storage_headers(),
+        json={},
+        timeout=30
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        current_app.logger.error('Supabase signed upload URL request failed with status %s', response.status_code)
+        raise
+
+    signed_path = response.json().get('url')
+    if not signed_path:
+        raise RuntimeError('Supabase did not return a signed upload URL.')
+    return _supabase_signed_url(signed_path)
+
+
+def create_supabase_download_url(object_key):
+    import httpx
+    from urllib.parse import quote
+
+    bucket = quote(current_app.config['SUPABASE_STORAGE_BUCKET'], safe='')
+    key = quote(object_key, safe='/')
+    response = httpx.post(
+        _supabase_storage_api_url(f'object/sign/{bucket}/{key}'),
+        headers=_supabase_storage_headers(),
+        json={'expiresIn': 120},
+        timeout=30
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        current_app.logger.error('Supabase signed download URL request failed with status %s', response.status_code)
+        raise
+
+    signed_path = response.json().get('signedURL')
+    if not signed_path:
+        raise RuntimeError('Supabase did not return a signed download URL.')
+    return _supabase_signed_url(signed_path)
+
+
+def download_supabase_object(object_key, suffix):
+    import httpx
+    from urllib.parse import quote
+
+    bucket = quote(current_app.config['SUPABASE_STORAGE_BUCKET'], safe='')
+    key = quote(object_key, safe='/')
+    local_file = tempfile.NamedTemporaryFile(prefix='smartstudy-', suffix=suffix, delete=False)
+    local_path = local_file.name
+    try:
+        with local_file, httpx.stream(
+            'GET',
+            _supabase_storage_api_url(f'object/{bucket}/{key}'),
+            headers=_supabase_storage_headers(),
+            timeout=httpx.Timeout(120, connect=15)
+        ) as response:
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError:
+                current_app.logger.error(
+                    'Supabase object download failed with status %s',
+                    response.status_code
+                )
+                raise
+            downloaded_size = 0
+            for chunk in response.iter_bytes():
+                local_file.write(chunk)
+                downloaded_size += len(chunk)
+        return local_path, downloaded_size
+    except Exception:
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        raise
+
+
+def delete_supabase_object(object_key):
+    import httpx
+    from urllib.parse import quote
+
+    bucket = quote(current_app.config['SUPABASE_STORAGE_BUCKET'], safe='')
+    response = httpx.delete(
+        _supabase_storage_api_url(f'object/{bucket}'),
+        headers=_supabase_storage_headers(),
+        json={'prefixes': [object_key]},
+        timeout=30
+    )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        current_app.logger.error('Supabase object deletion failed with status %s', response.status_code)
+        raise
+
+
+def extract_document_content(file_path, ext, subject, filename):
+    content_text = ''
+    page_count = 0
+    processing_error = None
+
+    try:
+        if ext == 'pdf':
+            import pypdf
+            with open(file_path, 'rb') as uploaded_file:
+                reader = pypdf.PdfReader(uploaded_file)
+                if reader.is_encrypted:
+                    raise ValueError('This PDF is password-protected. Remove its password and upload it again.')
+                page_count = len(reader.pages)
+                page_texts = []
+                sparse_pages = []
+                for page_number, page in enumerate(reader.pages, start=1):
+                    try:
+                        page_text = (page.extract_text(extraction_mode='layout') or '').strip()
+                    except Exception:
+                        current_app.logger.info(
+                            'Text extraction failed for PDF page %s in %s',
+                            page_number, filename, exc_info=True
+                        )
+                        page_text = ''
+                    page_texts.append(page_text)
+                    try:
+                        has_embedded_images = bool(page.images)
+                    except Exception:
+                        current_app.logger.info(
+                            'Image detection failed for PDF page %s in %s',
+                            page_number, filename, exc_info=True
+                        )
+                        has_embedded_images = False
+                    if len(page_text) < 40 or has_embedded_images:
+                        sparse_pages.append(page_number)
+
+            visual_analysis = ''
+            if sparse_pages:
+                transcription, processing_error = transcribe_scanned_pdf(
+                    file_path, subject, filename, sparse_pages
+                )
+                if transcription:
+                    visual_analysis = '[Visual analysis of scanned or image-heavy pages]\n' + transcription
+            content_text = '\n\n'.join(
+                f'[Page {page_number}]\n{page_text}'
+                for page_number, page_text in enumerate(page_texts, start=1)
+                if page_text
+            )
+            if visual_analysis:
+                content_text = '\n\n'.join(
+                    part for part in (content_text, visual_analysis) if part
+                )
+            if not content_text.strip() and not processing_error:
+                processing_error = 'No readable text or visual content could be extracted from this PDF.'
+        elif ext in ('txt', 'md'):
+            for encoding in ('utf-8', 'latin-1', 'cp1252', 'ascii'):
+                try:
+                    with open(file_path, 'r', encoding=encoding) as uploaded_file:
+                        content_text = uploaded_file.read()
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+            page_count = 1
+        elif ext == 'docx':
+            from docx import Document as DocxDocument
+            doc_obj = DocxDocument(file_path)
+            paragraphs = [paragraph.text for paragraph in doc_obj.paragraphs if paragraph.text.strip()]
+            content_text = '\n'.join(paragraphs)
+            page_count = max(1, len(content_text) // 3000)
+        elif ext in ('png', 'jpg', 'jpeg', 'webp'):
+            page_count = 1
+            from routes.api import ai_error_response, generate_vision_response, require_ai_client
+            client, model, error = require_ai_client()
+            if error:
+                processing_error = 'Image analysis requires OPENROUTER_API_KEY.'
+            else:
+                with open(file_path, 'rb') as image_file:
+                    image_data = image_file.read()
+                mime = 'image/jpeg' if ext in ('jpg', 'jpeg') else f'image/{ext}'
+                try:
+                    content_text = generate_vision_response(
+                        client,
+                        model,
+                        (
+                            f"You are an expert academic tutor for {subject}.\n"
+                            "Analyze this study image carefully. Transcribe visible text, formulas, "
+                            "equations, and labels; explain diagrams, charts, graphs, and relationships; "
+                            "then give evidence-based study takeaways. Mark illegible details as unclear "
+                            "instead of guessing. Do not claim certainty where the image is ambiguous."
+                        ),
+                        [(mime, image_data)],
+                        max_tokens=2500
+                    )
+                    if not content_text.strip():
+                        processing_error = 'The AI model returned no image analysis.'
+                except Exception as exc:
+                    result, _ = ai_error_response(exc, 'Image analysis')
+                    processing_error = result.get_json().get('error', 'Image analysis failed.')
+                    current_app.logger.exception('Image analysis failed for %s', filename)
+        else:
+            processing_error = 'This file type is not supported.'
+    except Exception as exc:
+        current_app.logger.exception('Failed to extract uploaded document %s', filename)
+        processing_error = str(exc) or 'Could not extract content from this document.'
+
+    return content_text, page_count, processing_error
+
+
+def save_processed_document(file_path, original_name, stored_name, ext, subject, file_size):
+    content_text, page_count, processing_error = extract_document_content(
+        file_path, ext, subject, original_name
+    )
+    document = Document(
+        user_id=current_user.id,
+        original_name=original_name,
+        stored_name=stored_name,
+        file_type=ext,
+        file_size=file_size,
+        content_text=content_text,
+        subject=subject,
+        is_processed=bool(content_text and not processing_error),
+        page_count=page_count,
+        word_count=len(content_text.split()) if content_text else 0
+    )
+    db.session.add(document)
+    db.session.add(StudySession(
+        user_id=current_user.id,
+        activity_type='document',
+        subject=subject
+    ))
+    db.session.commit()
+    return document, processing_error
 
 
 def transcribe_scanned_pdf(file_path, subject, filename, page_numbers):
@@ -363,14 +622,89 @@ def workspace():
     return render_template('student/workspace.html', documents=docs)
 
 
+@student_bp.route('/workspace/upload-url', methods=['POST'])
+@login_required
+def create_document_upload_url():
+    if not current_app.config['SUPABASE_STORAGE_ENABLED']:
+        return jsonify({'error': 'Direct uploads are not configured. Configure Supabase Storage on the server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    original_name = secure_filename(str(data.get('filename', '')).strip())
+    if not original_name or not allowed_file(original_name):
+        return jsonify({'error': 'Unsupported file type. Use PDF, TXT, DOCX, Markdown, PNG, JPG, or WEBP.'}), 400
+
+    ext = original_name.rsplit('.', 1)[1].lower()
+    object_key = f'{current_user.id}/{uuid.uuid4().hex}.{ext}'
+    try:
+        signed_url = create_supabase_upload_url(object_key)
+    except Exception:
+        current_app.logger.exception('Could not create Supabase upload URL for user %s', current_user.id)
+        return jsonify({'error': 'Could not prepare the storage upload. Check Supabase Storage configuration and try again.'}), 502
+
+    return jsonify({
+        'signed_url': signed_url,
+        'object_key': object_key,
+        'content_type': {
+            'pdf': 'application/pdf',
+            'txt': 'text/plain',
+            'md': 'text/markdown',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'webp': 'image/webp'
+        }[ext],
+        'filename': original_name
+    })
+
+
+@student_bp.route('/workspace/upload-complete', methods=['POST'])
+@login_required
+def complete_document_upload():
+    if not current_app.config['SUPABASE_STORAGE_ENABLED']:
+        return jsonify({'error': 'Supabase Storage is not configured on the server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    object_key = str(data.get('object_key', ''))
+    filename = secure_filename(str(data.get('filename', '')).strip())
+    if not filename or not allowed_file(filename):
+        return jsonify({'error': 'Unsupported file type.'}), 400
+
+    ext = filename.rsplit('.', 1)[1].lower()
+    expected_key = rf'{current_user.id}/[0-9a-f]{{32}}\.{re.escape(ext)}'
+    if not re.fullmatch(expected_key, object_key):
+        return jsonify({'error': 'Invalid or unauthorized storage object.'}), 400
+
+    local_path = None
+    try:
+        local_path, file_size = download_supabase_object(object_key, f'.{ext}')
+        client_size = data.get('file_size')
+        if not isinstance(client_size, int) or client_size <= 0 or client_size != file_size:
+            return jsonify({'error': 'The uploaded file size could not be verified. Please retry the upload.'}), 400
+
+        subject = str(data.get('subject') or 'General').strip()[:100] or 'General'
+        document, processing_error = save_processed_document(
+            local_path, filename, f'supabase:{object_key}', ext, subject, file_size
+        )
+    except Exception:
+        current_app.logger.exception('Could not process Supabase upload for user %s', current_user.id)
+        return jsonify({'error': 'The file was uploaded but could not be processed. Check its format and try again.'}), 502
+    finally:
+        if local_path and os.path.exists(local_path):
+            os.remove(local_path)
+
+    if processing_error:
+        flash(processing_error, 'warning')
+    return jsonify({
+        'success': True,
+        'document_url': url_for('student.document_view', doc_id=document.id),
+        'warning': processing_error
+    })
+
+
 @student_bp.route('/workspace/upload', methods=['POST'])
 @login_required
 def upload_document():
-    # ─── UPLOAD LIMIT CHECK ────────────────────────────────────────────────────
-    if not current_user.can_upload:
-        flash(f'You have used all {FREE_UPLOAD_LIMIT} free uploads. Upgrade to Pro for unlimited uploads!', 'error')
-        return redirect(url_for('payment.pricing'))
-    
     if 'file' not in request.files:
         flash('No file selected.', 'error')
         return redirect(url_for('student.workspace'))
@@ -394,12 +728,9 @@ def upload_document():
         flash(f'File too large. Maximum file size is {max_file_size // (1024 * 1024)} MB.', 'error')
         return redirect(url_for('student.workspace'))
     
-    # Secure storage
     ext = file.filename.rsplit('.', 1)[1].lower()
     stored_name = f"{current_user.id}_{uuid.uuid4().hex}.{ext}"
     upload_path = current_app.config['UPLOAD_FOLDER']
-    
-    # Create user-specific subdirectory
     user_upload_dir = os.path.join(upload_path, str(current_user.id))
     file_path = os.path.join(user_upload_dir, stored_name)
     try:
@@ -410,137 +741,20 @@ def upload_document():
         flash('Could not save the uploaded file. Please try again.', 'error')
         return redirect(url_for('student.workspace'))
     
-    # Extract text content with improved handling
-    content_text = ''
-    page_count = 0
-    processing_error = None
-    
     try:
-        if ext == 'pdf':
-            import pypdf
-            with open(file_path, 'rb') as f:
-                reader = pypdf.PdfReader(f)
-                if reader.is_encrypted:
-                    raise ValueError('This PDF is password-protected. Remove its password and upload it again.')
-                page_count = len(reader.pages)
-                page_texts = []
-                sparse_pages = []
-                for page_number, page in enumerate(reader.pages, start=1):
-                    try:
-                        page_text = (page.extract_text(extraction_mode='layout') or '').strip()
-                    except Exception:
-                        current_app.logger.info(
-                            'Text extraction failed for PDF page %s in %s',
-                            page_number, file.filename, exc_info=True
-                        )
-                        page_text = ''
-                    page_texts.append(page_text)
-                    try:
-                        has_embedded_images = bool(page.images)
-                    except Exception:
-                        current_app.logger.info(
-                            'Image detection failed for PDF page %s in %s',
-                            page_number, file.filename, exc_info=True
-                        )
-                        has_embedded_images = False
-                    if len(page_text) < 40 or has_embedded_images:
-                        sparse_pages.append(page_number)
-
-            visual_analysis = ''
-            if sparse_pages:
-                transcription, processing_error = transcribe_scanned_pdf(
-                    file_path, subject, file.filename, sparse_pages
-                )
-                if transcription:
-                    visual_analysis = '[Visual analysis of scanned or image-heavy pages]\n' + transcription
-            content_text = '\n\n'.join(
-                f'[Page {page_number}]\n{page_text}'
-                for page_number, page_text in enumerate(page_texts, start=1)
-                if page_text
-            )
-            if visual_analysis:
-                content_text = '\n\n'.join(
-                    part for part in (content_text, visual_analysis) if part
-                )
-            if not content_text.strip() and not processing_error:
-                processing_error = 'No readable text or visual content could be extracted from this PDF.'
-        elif ext == 'txt' or ext == 'md':
-            # Try multiple encodings
-            for encoding in ['utf-8', 'latin-1', 'cp1252', 'ascii']:
-                try:
-                    with open(file_path, 'r', encoding=encoding) as f:
-                        content_text = f.read()
-                    break
-                except (UnicodeDecodeError, UnicodeError):
-                    continue
-            page_count = 1
-        elif ext in ('docx', 'doc'):
-            from docx import Document as DocxDocument
-            doc_obj = DocxDocument(file_path)
-            paragraphs = [p.text for p in doc_obj.paragraphs if p.text.strip()]
-            content_text = '\n'.join(paragraphs)
-            page_count = max(1, len(content_text) // 3000)  # Estimate pages
-        elif ext in ('png', 'jpg', 'jpeg', 'webp'):
-            page_count = 1
-            # ─── Multimodal Vision AI Analysis ─────────────────────────────────
-            from routes.api import generate_vision_response, require_ai_client
-            client, model, _ = require_ai_client()
-            if client:
-                with open(file_path, 'rb') as img_f:
-                    image_data = img_f.read()
-                mime = 'image/jpeg' if ext in ('jpg', 'jpeg') else f'image/{ext}'
-                try:
-                    content_text = generate_vision_response(
-                        client,
-                        model,
-                        (
-                            f"You are an expert academic tutor for {subject}.\n"
-                            "Please analyze and comprehensively explain this study image/diagram in detail:\n"
-                            "1. Detailed Transcription: Transcribe all visible text, formulas, math equations, or labels.\n"
-                            "2. Diagram & Visual Analysis: Explain any diagrams, charts, graphs, flowcharts, anatomical structures, or circuits shown.\n"
-                            "3. Comprehensive Concept Explanation: Provide an in-depth academic explanation of the theory and principles illustrated in this image so a student can study directly from it.\n"
-                            "4. Key Study Takeaways: Highlight the critical points, exam tips, and definitions."
-                        ),
-                        [(mime, image_data)],
-                        max_tokens=2500
-                    )
-                except Exception as ve:
-                    content_text = f"Image study document: {file.filename}\n[Vision analysis note: {str(ve)}]"
-            else:
-                content_text = f"Image study document: {file.filename}\n[Uploaded image. Configure an AI provider API key to generate full vision breakdown.]"
-    except Exception as e:
-        current_app.logger.exception('Failed to extract uploaded document %s', file.filename)
-        processing_error = str(e) or 'Could not extract content from this document.'
-    
-    word_count = len(content_text.split()) if content_text else 0
-    
-    doc = Document(
-        user_id=current_user.id,
-        original_name=file.filename,
-        stored_name=stored_name,
-        file_type=ext,
-        file_size=file_size,
-        content_text=content_text,
-        subject=subject,
-        is_processed=bool(content_text and not processing_error),
-        page_count=page_count,
-        word_count=word_count
-    )
-    db.session.add(doc)
-    
-    # ─── INCREMENT FREE UPLOAD COUNTER ─────────────────────────────────────────
-    if not current_user.is_pro:
-        current_user.free_uploads_used += 1
-    
-    session_log = StudySession(user_id=current_user.id, activity_type='document', subject=subject)
-    db.session.add(session_log)
-    db.session.commit()
+        document, processing_error = save_processed_document(
+            file_path, secure_filename(file.filename), stored_name, ext, subject, file_size
+        )
+    except Exception:
+        current_app.logger.exception('Failed to process uploaded file for user %s', current_user.id)
+        flash('The uploaded file could not be processed. Please check the file and try again.', 'error')
+        return redirect(url_for('student.workspace'))
     
     if processing_error:
         flash(processing_error, 'warning')
     else:
         flash(f'Document "{file.filename}" uploaded and processed successfully!', 'success')
-    return redirect(url_for('student.document_view', doc_id=doc.id))
+    return redirect(url_for('student.document_view', doc_id=document.id))
 
 
 @student_bp.route('/workspace/document/<int:doc_id>')
@@ -563,6 +777,18 @@ def document_view(doc_id):
 def serve_document_file(doc_id):
     """Serve uploaded document, PDF, or image file securely for inline preview."""
     doc = Document.query.filter_by(id=doc_id, user_id=current_user.id).first_or_404()
+    if doc.stored_name.startswith('supabase:'):
+        if not current_app.config['SUPABASE_STORAGE_ENABLED']:
+            return jsonify({'error': 'Supabase Storage is not configured on the server.'}), 503
+        object_key = doc.stored_name.removeprefix('supabase:')
+        try:
+            response = redirect(create_supabase_download_url(object_key))
+        except Exception:
+            current_app.logger.exception('Could not create document preview URL for document %s', doc.id)
+            return jsonify({'error': 'The original document could not be loaded from storage.'}), 502
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        return response
+
     user_upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_user.id))
     file_path = os.path.join(user_upload_dir, doc.stored_name)
     if not os.path.isfile(file_path):
@@ -590,12 +816,22 @@ def serve_document_file(doc_id):
 @login_required
 def delete_document(doc_id):
     doc = Document.query.filter_by(id=doc_id, user_id=current_user.id).first_or_404()
-    
-    # Remove file
-    user_upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_user.id))
-    file_path = os.path.join(user_upload_dir, doc.stored_name)
-    if os.path.exists(file_path):
-        os.remove(file_path)
+
+    if doc.stored_name.startswith('supabase:'):
+        if not current_app.config['SUPABASE_STORAGE_ENABLED']:
+            flash('Supabase Storage is not configured; the document was not deleted.', 'error')
+            return redirect(url_for('student.workspace'))
+        try:
+            delete_supabase_object(doc.stored_name.removeprefix('supabase:'))
+        except Exception:
+            current_app.logger.exception('Could not delete stored document %s', doc.id)
+            flash('The original file could not be deleted from storage. The document was not removed.', 'error')
+            return redirect(url_for('student.workspace'))
+    else:
+        user_upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_user.id))
+        file_path = os.path.join(user_upload_dir, doc.stored_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
     
     db.session.delete(doc)
     db.session.commit()

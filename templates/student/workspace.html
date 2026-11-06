@@ -8,39 +8,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Upload Limit Status Banner -->
-{% if not current_user.is_pro %}
-  {% if not current_user.can_upload %}
-  <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
-    <div style="display: flex; align-items: center; gap: 1rem;">
-      <div style="font-size: 2rem;">⚠️</div>
-      <div>
-        <div style="font-weight: 700; color: #F87171; font-size: 1rem;">Free Upload Limit Reached ({{ current_user.free_uploads_used }}/{{ FREE_UPLOAD_LIMIT }} PDFs)</div>
-        <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
-          You have used all 3 free uploads. Upgrade to Pro for unlimited uploads, real AI summaries, and priority processing for ₹49/month!
-        </div>
-      </div>
-    </div>
-    <a href="{{ url_for('payment.pricing') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #7C3AED, #9333EA); font-weight: 700; padding: 0.65rem 1.25rem; text-decoration: none;">
-      ⭐ Upgrade to Pro (₹49)
-    </a>
-  </div>
-  {% else %}
-  <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
-    <div style="display: flex; align-items: center; gap: 0.75rem;">
-      <span style="font-size: 1.25rem;">📄</span>
-      <div style="font-size: 0.875rem;">
-        Free Tier: <strong>{{ current_user.free_uploads_used }}</strong> of <strong>{{ FREE_UPLOAD_LIMIT }}</strong> free uploads used
-        <span style="color: #10B981; font-weight: 600;">({{ current_user.uploads_remaining }} left)</span>
-      </div>
-    </div>
-    <a href="{{ url_for('payment.pricing') }}" style="font-size: 0.8rem; font-weight: 600; color: var(--primary-light); text-decoration: none;">
-      Upgrade to Pro for Unlimited →
-    </a>
-  </div>
-  {% endif %}
-{% endif %}
-
 <!-- Upload Modal -->
 <div class="modal-overlay" id="upload-modal">
   <div class="modal">
@@ -48,14 +15,18 @@
       <h3 class="modal-title">📄 Upload Study Document</h3>
       <button class="modal-close" data-modal-close="upload-modal">✕</button>
     </div>
-    <form method="POST" action="{{ url_for('student.upload_document') }}" enctype="multipart/form-data" id="upload-form">
+    <form method="POST" action="{{ url_for('student.upload_document') }}" enctype="multipart/form-data"
+          id="upload-form" data-supabase-upload="{{ 'true' if SUPABASE_STORAGE_ENABLED else 'false' }}">
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Select File <span class="required">*</span></label>
           <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:2rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)">
             <div style="font-size:2.5rem;margin-bottom:.75rem">📁</div>
             <p style="font-weight:600;color:var(--text-primary);margin-bottom:.25rem">Drop file here or click to browse</p>
-            <p style="font-size:.8rem;color:var(--text-muted)">Supports PDF, Images (JPG, PNG, WEBP), DOCX, TXT · Maximum 3 MB</p>
+            <p style="font-size:.8rem;color:var(--text-muted)">
+              Supports PDF, images (JPG, PNG, WEBP), DOCX, TXT
+              {% if SUPABASE_STORAGE_ENABLED %}· Uploaded directly to cloud storage{% else %}· Maximum 3 MB until cloud storage is configured{% endif %}
+            </p>
             <input type="file" name="file" id="file-input" accept=".pdf,.txt,.docx,.md,.png,.jpg,.jpeg,.webp" required style="display:none" />
           </div>
           <div id="file-preview" style="display:none;margin-top:.75rem;padding:.875rem;background:var(--primary-50);border-radius:var(--radius);border:1px solid var(--primary-200)">
@@ -67,6 +38,7 @@
               </div>
             </div>
           </div>
+          <div id="upload-progress" role="status" aria-live="polite" style="display:none;margin-top:.75rem;font-size:.8rem;color:var(--text-muted)"></div>
         </div>
         <div class="form-group">
           <label class="form-label" for="subject">Subject</label>
@@ -145,6 +117,8 @@
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
   const preview = document.getElementById('file-preview');
+  const uploadForm = document.getElementById('upload-form');
+  const useSupabaseStorage = uploadForm.dataset.supabaseUpload === 'true';
 
   dropZone.addEventListener('click', () => fileInput.click());
 
@@ -178,7 +152,7 @@
       showFlash('Unsupported file type. Please use PDF, TXT, DOCX, or MD.', 'error');
       return;
     }
-    if (file.size > {{ MAX_UPLOAD_FILE_SIZE }}) {
+    if (!useSupabaseStorage && file.size > {{ MAX_UPLOAD_FILE_SIZE }}) {
       showFlash('File size must be 3 MB or less.', 'error');
       return;
     }
@@ -191,8 +165,64 @@
     dropZone.style.borderColor = 'var(--primary)';
   }
 
-  document.getElementById('upload-form').addEventListener('submit', function() {
+  function uploadToSupabase(signedUrl, file, contentType) {
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      const progress = document.getElementById('upload-progress');
+      request.open('PUT', signedUrl);
+      request.setRequestHeader('Content-Type', contentType || 'application/octet-stream');
+      request.setRequestHeader('cache-control', 'max-age=3600');
+      request.upload.addEventListener('progress', event => {
+        if (event.lengthComputable) {
+          progress.style.display = 'block';
+          progress.textContent = `Uploading to cloud storage: ${Math.round(event.loaded / event.total * 100)}%`;
+        }
+      });
+      request.addEventListener('load', () => {
+        if (request.status >= 200 && request.status < 300) resolve();
+        else reject(new Error('Cloud storage rejected the file upload. Check bucket limits and try again.'));
+      });
+      request.addEventListener('error', () => reject(new Error('Could not reach cloud storage. Check your connection and storage CORS settings.')));
+      request.addEventListener('abort', () => reject(new Error('The upload was canceled.')));
+      request.send(file);
+    });
+  }
+
+  uploadForm.addEventListener('submit', async function(event) {
     const btn = document.getElementById('upload-btn');
+    if (useSupabaseStorage) {
+      event.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) {
+        showFlash('Choose a file before uploading.', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Preparing upload...';
+      try {
+        const signed = await apiCall('/student/workspace/upload-url', 'POST', {
+          filename: file.name
+        });
+        await uploadToSupabase(signed.signed_url, file, signed.content_type);
+        const progress = document.getElementById('upload-progress');
+        progress.style.display = 'block';
+        progress.textContent = 'Upload complete. Processing document...';
+        const result = await apiCall('/student/workspace/upload-complete', 'POST', {
+          object_key: signed.object_key,
+          filename: signed.filename,
+          file_size: file.size,
+          subject: document.getElementById('subject').value
+        });
+        window.location.assign(result.document_url);
+      } catch (error) {
+        showFlash(error.message || 'Upload failed. Please try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = '⬆ Upload & Process';
+      }
+      return;
+    }
+
     btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Uploading...';
     btn.disabled = true;
   });

@@ -108,13 +108,13 @@ def test_vercel_uses_writable_temporary_upload_directory(monkeypatch, tmp_path):
     )
 
 
-def test_public_pricing_page_explains_manual_payment_and_limits():
+def test_public_pricing_page_explains_manual_payment_and_document_uploads():
     response = app.test_client().get("/pricing")
 
     assert response.status_code == 200
     assert b"Pricing Plans | SmartStudy.ai" in response.data
-    assert b"Up to 3 study document uploads" in response.data
-    assert b"Pro removes the upload cap" in response.data
+    assert b"Study document uploads are available on every plan" in response.data
+    assert b"up to 3 study document uploads" not in response.data
     assert b"12-digit UTR" in response.data
     assert b"admin confirms the payment" in response.data
     assert b"/payment/pricing" not in response.data
@@ -167,6 +167,148 @@ def test_students_cannot_see_each_others_documents():
     assert c1.get(f"/student/workspace/document/{did}").status_code == 200
     assert c2.get(f"/student/workspace/document/{did}").status_code == 404
     assert js(c2, "/api/ai/generate-notes", {"document_id": did}, t2).status_code in (404, 503)
+
+
+def test_free_account_can_upload_more_than_three_documents():
+    client, csrf_token = student("manyuploads@t.co")
+    with app.app_context():
+        account = User.query.filter_by(email="manyuploads@t.co").one()
+        account.free_uploads_used = 3
+        db.session.add_all([
+            Document(
+                user_id=account.id,
+                original_name=f"old-{index}.txt",
+                stored_name=f"old-{index}.txt",
+                file_type="txt",
+                file_size=20
+            )
+            for index in range(3)
+        ])
+        db.session.commit()
+
+    response = client.post(
+        "/student/workspace/upload",
+        data={
+            "file": (io.BytesIO(b"Additional study material for upload."), "fourth.txt"),
+            "subject": "General",
+            "csrf_token": csrf_token
+        },
+        content_type="multipart/form-data"
+    )
+
+    assert response.status_code == 302
+    with app.app_context():
+        account = User.query.filter_by(email="manyuploads@t.co").one()
+        assert Document.query.filter_by(user_id=account.id).count() == 4
+        assert account.can_upload is True
+        assert account.uploads_remaining == -1
+
+
+def test_supabase_upload_url_is_scoped_to_logged_in_user(monkeypatch):
+    client, csrf_token = student("signedupload@t.co")
+    monkeypatch.setitem(app.config, "SUPABASE_STORAGE_ENABLED", True)
+    requested_keys = []
+
+    def fake_create_upload_url(object_key):
+        requested_keys.append(object_key)
+        return "https://storage.example/signed-upload"
+
+    monkeypatch.setattr("routes.student.create_supabase_upload_url", fake_create_upload_url)
+    response = js(
+        client,
+        "/student/workspace/upload-url",
+        {"filename": "lecture notes.PDF"},
+        csrf_token
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["signed_url"] == "https://storage.example/signed-upload"
+    assert payload["filename"] == "lecture_notes.PDF"
+    assert requested_keys == [payload["object_key"]]
+    assert re.fullmatch(rf'{user("signedupload@t.co").id}/[0-9a-f]{{32}}\.pdf', payload["object_key"])
+
+
+def test_supabase_upload_completion_checks_owner_and_file_size(monkeypatch, tmp_path):
+    client, csrf_token = student("completeupload@t.co")
+    monkeypatch.setitem(app.config, "SUPABASE_STORAGE_ENABLED", True)
+    content = b"Photosynthesis converts light energy into chemical energy."
+    object_key = f'{user("completeupload@t.co").id}/{"a" * 32}.txt'
+    local_path = tmp_path / "upload.txt"
+
+    def fake_download(key, suffix):
+        assert key == object_key
+        local_path.write_bytes(content)
+        return str(local_path), len(content)
+
+    monkeypatch.setattr("routes.student.download_supabase_object", fake_download)
+    invalid_size = js(
+        client,
+        "/student/workspace/upload-complete",
+        {"object_key": object_key, "filename": "notes.txt", "file_size": len(content) + 1},
+        csrf_token
+    )
+    assert invalid_size.status_code == 400
+    assert not local_path.exists()
+
+    other_user_client, other_user_token = student("othercompleteupload@t.co")
+    unauthorized = js(
+        other_user_client,
+        "/student/workspace/upload-complete",
+        {"object_key": object_key, "filename": "notes.txt", "file_size": len(content)},
+        other_user_token
+    )
+    assert unauthorized.status_code == 400
+
+    completed = js(
+        client,
+        "/student/workspace/upload-complete",
+        {"object_key": object_key, "filename": "notes.txt", "file_size": len(content)},
+        csrf_token
+    )
+    assert completed.status_code == 200
+    with app.app_context():
+        document = Document.query.filter_by(user_id=user("completeupload@t.co").id).one()
+        assert document.stored_name == f"supabase:{object_key}"
+        assert document.content_text == content.decode()
+        assert document.file_size == len(content)
+    assert not local_path.exists()
+
+
+def test_supabase_document_preview_and_delete_use_storage(monkeypatch):
+    client, csrf_token = student("cloudpreview@t.co")
+    monkeypatch.setitem(app.config, "SUPABASE_STORAGE_ENABLED", True)
+    object_key = f'{user("cloudpreview@t.co").id}/{"b" * 32}.pdf'
+    with app.app_context():
+        document = Document(
+            user_id=user("cloudpreview@t.co").id,
+            original_name="notes.pdf",
+            stored_name=f"supabase:{object_key}",
+            file_type="pdf",
+            file_size=20
+        )
+        db.session.add(document)
+        db.session.commit()
+        document_id = document.id
+
+    monkeypatch.setattr(
+        "routes.student.create_supabase_download_url",
+        lambda key: f"https://storage.example/{key}"
+    )
+    preview = client.get(f"/student/workspace/file/{document_id}")
+    assert preview.status_code == 302
+    assert preview.headers["Location"] == f"https://storage.example/{object_key}"
+    assert preview.headers["X-Frame-Options"] == "SAMEORIGIN"
+
+    deleted_keys = []
+    monkeypatch.setattr("routes.student.delete_supabase_object", deleted_keys.append)
+    client.post(
+        f"/student/workspace/document/{document_id}/delete",
+        data={"csrf_token": csrf_token}
+    )
+    assert deleted_keys == [object_key]
+    with app.app_context():
+        assert db.session.get(Document, document_id) is None
 
 def test_student_cannot_use_admin_area():
     c, t = student("noadmin@t.co")

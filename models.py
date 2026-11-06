@@ -10,13 +10,11 @@ PLAN_MONTHLY = 'monthly'
 PLAN_ANNUAL = 'annual'
 PLAN_INSTITUTION = 'institution'
 
-FREE_UPLOAD_LIMIT = 3  # Max PDFs for free users
-
 PLAN_DETAILS = {
-    PLAN_FREE: {'name': 'Free', 'price': 0, 'period': None, 'upload_limit': FREE_UPLOAD_LIMIT},
-    PLAN_MONTHLY: {'name': 'Pro Monthly', 'price': 4900, 'period': 'monthly', 'upload_limit': None},
-    PLAN_ANNUAL: {'name': 'Pro Annual', 'price': 49900, 'period': 'yearly', 'upload_limit': None},
-    PLAN_INSTITUTION: {'name': 'Institution', 'price': 200000, 'period': 'monthly', 'upload_limit': None},
+    PLAN_FREE: {'name': 'Free', 'price': 0, 'period': None},
+    PLAN_MONTHLY: {'name': 'Pro Monthly', 'price': 4900, 'period': 'monthly'},
+    PLAN_ANNUAL: {'name': 'Pro Annual', 'price': 49900, 'period': 'yearly'},
+    PLAN_INSTITUTION: {'name': 'Institution', 'price': 200000, 'period': 'monthly'},
 }
 
 
@@ -91,17 +89,13 @@ class User(UserMixin, db.Model):
     
     @property
     def can_upload(self):
-        """Check if user can upload more documents."""
-        if self.is_pro:
-            return True
-        return self.free_uploads_used < FREE_UPLOAD_LIMIT
-    
+        """All account plans can upload documents."""
+        return True
+
     @property
     def uploads_remaining(self):
-        """Get number of free uploads remaining."""
-        if self.is_pro:
-            return -1  # Unlimited
-        return max(0, FREE_UPLOAD_LIMIT - self.free_uploads_used)
+        """Return -1 to represent unlimited document uploads."""
+        return -1
     
     @property
     def active_subscription(self):
@@ -269,7 +263,7 @@ class Document(db.Model):
     original_name = db.Column(db.String(255), nullable=False)
     stored_name = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(10), nullable=False)
-    file_size = db.Column(db.Integer, default=0)
+    file_size = db.Column(db.BigInteger, default=0)
     content_text = db.Column(db.Text, default='')
     summary = db.Column(db.Text, default='')
     subject = db.Column(db.String(100), default='General')
