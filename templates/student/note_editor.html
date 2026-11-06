@@ -3,78 +3,125 @@
 {% block page_title %}{{ 'Edit Note' if mode == 'edit' else 'New Note' }}{% endblock %}
 
 {% block topbar_actions %}
-<a href="{{ url_for('student.notes') }}" class="btn btn-ghost btn-sm">← Notes</a>
+<a href="{{ url_for('student.notes') }}" class="btn btn-ghost btn-sm">Back to notes</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.note-editor-shell { max-width: 920px; margin: 0 auto; }
+.note-editor-heading { margin-bottom: 1.25rem; }
+.note-editor-heading h2 { margin: 0 0 .35rem; font-size: 1.35rem; }
+.note-editor-heading p { margin: 0; color: var(--text-muted); font-size: .9rem; }
+.note-editor-card { overflow: hidden; }
+.note-editor-card .card-body { padding: clamp(1rem, 3vw, 2rem); }
+.note-field { margin-bottom: 1.35rem; }
+.note-field:last-child { margin-bottom: 0; }
+.note-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: .75rem; margin-bottom: .45rem; }
+.note-label-row .form-label { margin-bottom: 0; }
+.note-hint, .note-counter { color: var(--text-muted); font-size: .75rem; }
+.note-title-input { min-height: 3.25rem; font-size: 1.1rem !important; }
+.note-meta-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.note-color-field { grid-column: 1 / -1; }
+.note-color-options { display: flex; flex-wrap: wrap; gap: .65rem; }
+.note-color-choice { position: relative; display: inline-flex; cursor: pointer; }
+.note-color-choice input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.note-color-swatch { width: 1.8rem; height: 1.8rem; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--border); }
+.note-color-choice input:checked + .note-color-swatch { box-shadow: 0 0 0 2px var(--text-primary); }
+.note-color-choice input:focus-visible + .note-color-swatch { outline: 3px solid var(--primary-light); outline-offset: 3px; }
+.note-format-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; padding: .65rem; background: var(--bg); border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius) var(--radius) 0 0; }
+.note-format-toolbar button { min-width: 4.5rem; }
+.note-content-input { min-height: 380px; border-radius: 0 0 var(--radius) var(--radius); font-family: inherit; font-size: .95rem; line-height: 1.75; resize: vertical; }
+.note-editor-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.note-editor-actions { display: flex; align-items: center; gap: .65rem; margin-left: auto; }
+@media (max-width: 600px) {
+  .note-meta-grid { grid-template-columns: 1fr; }
+  .note-color-field { grid-column: auto; }
+  .note-content-input { min-height: 280px; }
+  .note-editor-actions { width: 100%; }
+  .note-editor-actions .btn { flex: 1; }
+}
+</style>
 {% endblock %}
 
 {% block content %}
-<div style="max-width:800px;margin:0 auto">
+<div class="note-editor-shell">
+  <div class="note-editor-heading">
+    <h2>{{ 'Edit your note' if mode == 'edit' else 'Create a note' }}</h2>
+    <p>Keep your study material organized and easy to review.</p>
+  </div>
+
   <form method="POST" id="note-form">
-    <div class="card">
+    <div class="card note-editor-card">
       <div class="card-body">
-        <!-- Title -->
-        <div class="form-group">
-          <label class="form-label" for="note-title">Note Title <span class="required">*</span></label>
-          <input type="text" id="note-title" name="title" class="form-control"
+        <div class="note-field">
+          <div class="note-label-row">
+            <label class="form-label" for="note-title">Title <span class="required">*</span></label>
+            <span class="note-hint">Choose a clear, descriptive title</span>
+          </div>
+          <input type="text" id="note-title" name="title" class="form-control note-title-input"
                  value="{{ note.title if note else '' }}"
-                 placeholder="Enter note title..." required style="font-size:1.125rem;font-weight:600" />
+                 placeholder="For example: Biology: Cell Structure" required maxlength="200" />
         </div>
 
-        <!-- Meta row -->
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem">
-          <div style="flex:1;min-width:140px">
-            <label class="form-label">Subject</label>
-            <select name="subject" class="form-control form-select">
+        <div class="note-meta-grid note-field">
+          <div>
+            <label class="form-label" for="note-subject">Subject</label>
+            <select id="note-subject" name="subject" class="form-control form-select">
               {% set subjects = ['General','Mathematics','Computer Science','Physics','Chemistry','Biology','History','Literature','Economics','Psychology','Other'] %}
               {% for s in subjects %}
               <option value="{{ s }}" {% if note and note.subject == s %}selected{% endif %}>{{ s }}</option>
               {% endfor %}
             </select>
           </div>
-          <div style="flex:1;min-width:140px">
-            <label class="form-label">Tags <span style="font-weight:400;color:var(--text-muted)">(comma separated)</span></label>
-            <input type="text" name="tags" class="form-control" value="{{ note.tags if note else '' }}" placeholder="e.g. exam, chapter-1" />
+          <div>
+            <label class="form-label" for="note-tags">Tags</label>
+            <input id="note-tags" type="text" name="tags" class="form-control"
+                   value="{{ note.tags if note else '' }}" placeholder="Separate tags with commas" />
           </div>
-          <div style="flex-shrink:0">
-            <label class="form-label">Color</label>
-            <div style="display:flex;gap:.375rem;margin-top:.5rem">
-              {% for color in ['#7C3AED','#5B21B6','#0891B2','#059669','#D97706','#DC2626','#2563EB','#7C3AED'] %}
-              <label style="cursor:pointer">
-                <input type="radio" name="color" value="{{ color }}" {% if (note and note.color == color) or (not note and loop.first) %}checked{% endif %} style="display:none" />
-                <div style="width:22px;height:22px;border-radius:50%;background:{{ color }};border:2px solid transparent;transition:all .15s" class="color-swatch"></div>
-              </label>
-              {% endfor %}
-            </div>
+          <div class="note-color-field">
+            <fieldset style="border:0;padding:0;margin:0">
+              <legend class="form-label">Note color</legend>
+              <div class="note-color-options">
+                {% for color in ['#7C3AED','#5B21B6','#0891B2','#059669','#D97706','#DC2626','#2563EB'] %}
+                <label class="note-color-choice" title="Select note color">
+                  <input type="radio" name="color" value="{{ color }}" aria-label="Note color {{ color }}"
+                         {% if (note and note.color == color) or (not note and loop.first) %}checked{% endif %} />
+                  <span class="note-color-swatch" style="background:{{ color }}"></span>
+                </label>
+                {% endfor %}
+              </div>
+            </fieldset>
           </div>
         </div>
 
-        <!-- Content Editor -->
-        <div class="form-group">
-          <label class="form-label">Content <span style="font-weight:400;font-size:.75rem;color:var(--text-muted)">(Markdown supported)</span></label>
-          <!-- Toolbar -->
-          <div style="display:flex;gap:.25rem;padding:.5rem;background:var(--bg);border:1.5px solid var(--border);border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;flex-wrap:wrap">
-            {% for btn_text, cmd, title in [('B','bold','Bold'), ('I','italic','Italic'), ('H1','h1','Heading 1'), ('H2','h2','Heading 2'), ('•','ul','Bullet List'), ('1.','ol','Numbered List'), ('`','code','Inline Code'), ('—','hr','Divider')] %}
-            <button type="button" class="btn btn-ghost" style="padding:.25rem .5rem;font-size:.75rem;font-weight:{{ '800' if cmd in ('bold','h1','h2') else '400' }}" onclick="insertFormat('{{ cmd }}')" title="{{ title }}">{{ btn_text }}</button>
+        <div class="note-field">
+          <div class="note-label-row">
+            <label class="form-label" for="note-content">Your notes</label>
+            <span class="note-counter" id="note-word-count" aria-live="polite">0 words</span>
+          </div>
+          <div class="note-format-toolbar" aria-label="Text formatting">
+            {% for btn_text, cmd in [('Bold','bold'), ('Italic','italic'), ('Heading','h2'), ('Bulleted list','ul'), ('Numbered list','ol')] %}
+            <button type="button" class="btn btn-ghost btn-sm" onclick="insertFormat('{{ cmd }}')">{{ btn_text }}</button>
             {% endfor %}
           </div>
-          <textarea id="note-content" name="content" class="form-control" 
-                    style="min-height:350px;border-radius:0 0 var(--radius) var(--radius);border-top:none;font-family:monospace;font-size:.875rem;line-height:1.7;resize:vertical"
-                    placeholder="Start writing your notes here... Markdown is supported!&#10;&#10;# Heading 1&#10;## Heading 2&#10;**bold** *italic*&#10;- bullet point&#10;1. numbered list">{{ note.content if note else '' }}</textarea>
+          <textarea id="note-content" name="content" class="form-control note-content-input"
+                    placeholder="Start writing your ideas, explanations, or study notes here.">{{ note.content if note else '' }}</textarea>
+          <div class="note-hint" style="margin-top:.4rem">Use the formatting controls when you want to structure your note.</div>
         </div>
       </div>
 
-      <div class="card-footer">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem">
-          <div>
-            {% if mode == 'edit' %}
-            <form method="POST" action="{{ url_for('student.delete_note', note_id=note.id) }}" style="display:inline">
-              <button type="submit" class="btn btn-ghost" style="color:var(--error)" data-confirm="Delete this note permanently?">🗑 Delete</button>
-            </form>
-            {% endif %}
-          </div>
-          <div style="display:flex;gap:.75rem">
-            <a href="{{ url_for('student.notes') }}" class="btn btn-ghost">Cancel</a>
-            <button type="submit" class="btn btn-primary">💾 {{ 'Save Changes' if mode == 'edit' else 'Create Note' }}</button>
-          </div>
+      <div class="card-footer note-editor-footer">
+        {% if mode == 'edit' %}
+        <button type="submit" class="btn btn-ghost" style="color:var(--error)"
+                formaction="{{ url_for('student.delete_note', note_id=note.id) }}"
+                formmethod="POST" formnovalidate
+                data-confirm="Delete this note permanently?">Delete note</button>
+        {% else %}
+        <span class="note-hint">Your note is saved to your account when you submit.</span>
+        {% endif %}
+        <div class="note-editor-actions">
+          <a href="{{ url_for('student.notes') }}" class="btn btn-ghost">Cancel</a>
+          <button type="submit" class="btn btn-primary">{{ 'Save changes' if mode == 'edit' else 'Create note' }}</button>
         </div>
       </div>
     </div>
@@ -84,24 +131,6 @@
 
 {% block extra_js %}
 <script>
-// Color swatch selection
-document.querySelectorAll('.color-swatch').forEach(swatch => {
-  const radio = swatch.previousElementSibling;
-  function update() {
-    swatch.style.borderColor = radio.checked ? '#fff' : 'transparent';
-    swatch.style.outline = radio.checked ? '2px solid ' + swatch.style.background : 'none';
-    swatch.style.outlineOffset = '2px';
-  }
-  update();
-  radio.addEventListener('change', () => {
-    document.querySelectorAll('.color-swatch').forEach(s => {
-      s.style.borderColor = 'transparent';
-      s.style.outline = 'none';
-    });
-    update();
-  });
-});
-
 function insertFormat(type) {
   const ta = document.getElementById('note-content');
   const start = ta.selectionStart, end = ta.selectionEnd;
@@ -120,6 +149,16 @@ function insertFormat(type) {
   ta.value = ta.value.substring(0, start) + insert + ta.value.substring(end);
   ta.focus();
   ta.selectionStart = ta.selectionEnd = start + insert.length;
+  updateWordCount();
 }
+
+function updateWordCount() {
+  const content = document.getElementById('note-content').value.trim();
+  const count = content ? content.split(/\s+/).length : 0;
+  document.getElementById('note-word-count').textContent = `${count} ${count === 1 ? 'word' : 'words'}`;
+}
+
+document.getElementById('note-content').addEventListener('input', updateWordCount);
+updateWordCount();
 </script>
 {% endblock %}

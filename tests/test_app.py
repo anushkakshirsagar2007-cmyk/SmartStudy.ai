@@ -42,6 +42,20 @@ def test_register_login_dashboard():
     assert user("alice1@t.co").consent_at is not None
 
 
+def test_note_editor_has_clean_text_controls_and_accessible_color_choices():
+    c, _ = student("noteeditor@t.co")
+    response = c.get("/student/notes/create")
+
+    assert response.status_code == 200
+    assert b"Create a note" in response.data
+    assert b"Your notes" in response.data
+    assert b"Bulleted list" in response.data
+    assert b"aria-label=\"Note color" in response.data
+    assert b"function updateWordCount()" in response.data
+    assert "💾".encode() not in response.data
+    assert "🗑".encode() not in response.data
+
+
 def test_registration_does_not_send_verification_email(monkeypatch):
     sent = []
     monkeypatch.setattr("routes.auth.send_email", lambda *args: sent.append(args))
