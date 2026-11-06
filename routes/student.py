@@ -564,6 +564,12 @@ def serve_document_file(doc_id):
     """Serve uploaded document, PDF, or image file securely for inline preview."""
     doc = Document.query.filter_by(id=doc_id, user_id=current_user.id).first_or_404()
     user_upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_user.id))
+    file_path = os.path.join(user_upload_dir, doc.stored_name)
+    if not os.path.isfile(file_path):
+        return jsonify({
+            'error': 'The original upload is no longer available on this server. Its extracted text is still available below.'
+        }), 404
+
     mimetype = None
     if doc.file_type == 'pdf':
         mimetype = 'application/pdf'
@@ -573,7 +579,11 @@ def serve_document_file(doc_id):
         mimetype = 'image/jpeg'
     elif doc.file_type in ('txt', 'md'):
         mimetype = 'text/plain; charset=utf-8'
-    return send_from_directory(user_upload_dir, doc.stored_name, mimetype=mimetype, as_attachment=False)
+    response = send_from_directory(
+        user_upload_dir, doc.stored_name, mimetype=mimetype, as_attachment=False
+    )
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
 
 
 @student_bp.route('/workspace/document/<int:doc_id>/delete', methods=['POST'])

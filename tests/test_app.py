@@ -506,10 +506,28 @@ def test_mixed_pdf_extracts_text_and_analyzes_sparse_pages(monkeypatch):
     assert response.status_code == 200
     with app.app_context():
         document = Document.query.filter_by(original_name="mixed.pdf").one()
+        document_id = document.id
+        original_file_path = os.path.join(
+            app.config["UPLOAD_FOLDER"], str(document.user_id), document.stored_name
+        )
         assert document.is_processed
         assert document.page_count == 2
         assert "selectable text" in document.content_text
         assert "Diagram labels" in document.content_text
+
+    document_page = client.get(f"/student/workspace/document/{document_id}")
+    assert b"function switchDocTab(tab)" in document_page.data
+    assert b"initializePdfPreview();" in document_page.data
+
+    pdf_response = client.get(f"/student/workspace/file/{document_id}")
+    assert pdf_response.status_code == 200
+    assert pdf_response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    pdf_response.close()
+
+    os.remove(original_file_path)
+    missing_response = client.get(f"/student/workspace/file/{document_id}")
+    assert missing_response.status_code == 404
+    assert missing_response.get_json()["error"].startswith("The original upload is no longer available")
 
 
 def test_long_document_chunks_cover_all_source_content():
