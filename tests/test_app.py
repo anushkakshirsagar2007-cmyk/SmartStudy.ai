@@ -74,6 +74,14 @@ def test_public_pricing_page_explains_manual_payment_and_limits():
     assert b"/payment/pricing" not in response.data
 
 
+def test_support_email_is_consistent_across_public_pages():
+    client = app.test_client()
+    contact_email = app.config["CONTACT_EMAIL"].encode()
+
+    assert contact_email in client.get("/privacy").data
+    assert contact_email in client.get("/pricing").data
+
+
 def test_institution_plan_is_not_available_as_single_user_checkout():
     client, csrf_token = student("institutioncheckout@t.co", "institutioncheckout")
 

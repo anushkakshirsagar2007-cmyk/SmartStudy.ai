@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint, render_template, request, Response
+from flask import Blueprint, current_app, render_template, request, Response
 
 main_bp = Blueprint('main', __name__)
 
@@ -9,7 +9,7 @@ def _site_url():
 @main_bp.app_context_processor
 def inject_site():
     return {'site_url': _site_url(),
-            'support_email': os.environ.get('CONTACT_EMAIL') or os.environ.get('SUPPORT_EMAIL') or os.environ.get('ADMIN_EMAIL') or 'support@example.com'}
+            'support_email': current_app.config['CONTACT_EMAIL']}
 
 @main_bp.route('/')
 def index():

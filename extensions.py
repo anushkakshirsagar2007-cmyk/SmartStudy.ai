@@ -58,7 +58,7 @@ def create_app():
     app.config['MAIL_FROM'] = os.environ.get('MAIL_FROM') or os.environ.get('CONTACT_EMAIL') or 'no-reply@smartstudy.ai'
     app.config['SITE_URL'] = os.environ.get('SITE_URL', '').rstrip('/')
     app.config['BUSINESS_NAME'] = os.environ.get('BUSINESS_NAME', 'SmartStudy.ai')
-    app.config['CONTACT_EMAIL'] = os.environ.get('CONTACT_EMAIL') or os.environ.get('SUPPORT_EMAIL') or 'support@example.com'
+    app.config['CONTACT_EMAIL'] = os.environ.get('CONTACT_EMAIL') or os.environ.get('SUPPORT_EMAIL') or 'smartstudyai@gmail.com'
     app.config['REFUND_WINDOW'] = os.environ.get('REFUND_WINDOW', 'within 7 days of payment')
     app.config['SCANNED_PDF_PAGE_LIMIT'] = min(5, max(1, int(os.environ.get('SCANNED_PDF_PAGE_LIMIT', '3'))))
     
